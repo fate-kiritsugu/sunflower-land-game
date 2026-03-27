@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bumpkin Pac-Man</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+  }
+  h1 {
+    font-size: 2rem;
+    color: #f4d03f;
+    text-shadow: 0 0 20px #f4d03f, 0 0 40px #e67e22;
+    margin-bottom: 10px;
+    letter-spacing: 4px;
+  }
+  #hud {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 10px;
+    font-size: 1.1rem;
+    color: #f4d03f;
+  }
+  canvas {
+    border: 3px solid #4a90e2;
+    box-shadow: 0 0 30px #4a90e2, 0 0 60px #1a3a6a;
+    image-rendering: pixelated;
+    display: block;
+  }
+  #msg {
+    margin-top: 12px;
+    font-size: 1.2rem;
+    color: #f4d03f;
+    text-shadow: 0 0 10px #f4d03f;
+    min-height: 1.8rem;
+    letter-spacing: 2px;
+  }
+  #controls {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    color: #666;
+  }
+</style>
+</head>
+<body>
+
+<h1>BUMPKIN PAC-MAN</h1>
+<div id="hud">
+  <span>SCORE: <span id="score">0</span></span>
+  <span>VIDAS: <span id="lives">❤️❤️❤️</span></span>
+  <span>NIVEL: <span id="level">1</span></span>
+</div>
+<canvas id="c"></canvas>
+<div id="msg">Presiona ESPACIO para empezar</div>
+<div id="controls">WASD / Flechas para moverse &nbsp;·&nbsp; ESPACIO = pausa</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────
+const TILE  = 28;
+const COLS  = 19;
+const ROWS  = 19;
+const W     = COLS * TILE;  // 532
+const H     = ROWS * TILE;  // 532
+const POWER_FRAMES = 300;
+
+const canvas = document.getElementById('c');
+canvas.width  = W;
+canvas.height = H;
+const ctx = canvas.getContext('2d');
+
+// ─── MAP ──────────────────────────────────────────────────────
+// 1=muro  0=punto  2=vacío  3=power-pellet  4=casa-goblins
+const MAP_TEMPLATE = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,3,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,3,1],
+  [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+  [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+  [1,0,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,0,1],
+  [1,1,1,1,0,1,1,1,2,1,2,1,1,1,0,1,1,1,1],
+  [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+  [1,1,1,1,0,1,2,1,4,4,4,1,2,1,0,1,1,1,1],
+  [2,2,2,2,0,2,2,1,4,4,4,1,2,2,0,2,2,2,2],
+  [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+  [2,2,2,1,0,1,2,2,2,2,2,2,2,1,0,1,2,2,2],
+  [1,1,1,1,0,1,2,1,1,1,1,1,2,1,0,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+  [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+  [1,3,0,1,0,0,0,0,0,2,0,0,0,0,0,1,0,3,1],
+  [1,1,0,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+// ─── IMAGES ───────────────────────────────────────────────────
+const imgBumpkin = new Image();
+imgBumpkin.src = 'src/assets/npcs/snorkel_bumpkin.png';
+
+const imgGoblin = new Image();
+imgGoblin.src = 'public/world/big_goblin.png';   // 4 goblins side-by-side sprite sheet
+
+// ─── STATE ────────────────────────────────────────────────────
+let map, totalDots, score, lives, level;
+let gameState = 'waiting';   // waiting | playing | paused | gameover | win
+let powerTimer = 0;
+let player, goblins;
+
+// ─── INIT ─────────────────────────────────────────────────────
+function resetMap() {
+  map = MAP_TEMPLATE.map(r => [...r]);
+  totalDots = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (map[r][c] === 0 || map[r][c] === 3) totalDots++;
+}
+
+function makePlayer() {
+  return {
+    x: 9*TILE + TILE/2, y: 16*TILE + TILE/2,
+    tx: 9, ty: 16,
+    dx: 0, dy: 0,
+    nextDx: 0, nextDy: 0,
+    speed: 2.2 + (level-1)*0.25,
+  };
+}
+
+const GOBLIN_STARTS = [
+  { tx:8, ty:9, dx: 1, dy:0 },
+  { tx:9, ty:9, dx:-1, dy:0 },
+  { tx:10,ty:9, dx: 1, dy:0 },
+  { tx:9, ty:10,dx:-1, dy:0 },
+];
+const GOBLIN_COLORS = ['#4ade80','#f87171','#60a5fa','#facc15'];
+const GOBLIN_NAMES  = ['Blinky','Pinky','Inky','Clyde'];
+
+function makeGoblin(i) {
+  const s = GOBLIN_STARTS[i];
+  return {
+    ...s,
+    x: s.tx*TILE + TILE/2, y: s.ty*TILE + TILE/2,
+    speed: 1.7 + (level-1)*0.2 + i*0.08,
+    color: GOBLIN_COLORS[i],
+    name: GOBLIN_NAMES[i],
+    frameIdx: i % 4,
+    animTick: i * 3,
+    scared: false, scaredTimer: 0,
+    dead: false,   deadTimer: 0,
+    inHouse: true, exitTimer: 40 + i*90,
+    bobOffset: i * Math.PI / 2,
+  };
+}
+
+function initGame() {
+  score = 0; lives = 3; level = 1;
+  resetMap();
+  player  = makePlayer();
+  goblins = [0,1,2,3].map(makeGoblin);
+  gameState = 'playing';
+  powerTimer = 0;
+  updateHUD();
+}
+
+function nextLevel() {
+  level++;
+  resetMap();
+  player  = makePlayer();
+  goblins = [0,1,2,3].map(makeGoblin);
+  powerTimer = 0;
+  gameState = 'playing';
+  setMsg('');
+  updateHUD();
+}
+
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('lives').textContent = '❤️'.repeat(Math.max(0, lives));
+  document.getElementById('level').textContent = level;
+}
+
+function setMsg(t) { document.getElementById('msg').textContent = t; }
+
+// ─── HELPERS ──────────────────────────────────────────────────
+function isWall(tx, ty) {
+  if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return true;
+  return map[ty][tx] === 1;
+}
+function isHouseOrWall(tx, ty) {
+  if (tx < 0 || tx >= COLS || ty < 0 || ty >= ROWS) return true;
+  return map[ty][tx] === 1 || map[ty][tx] === 4;
+}
+
+// ─── INPUT ────────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+
+  if (e.code === 'ArrowUp'    || e.code === 'KeyW') { player && (player.nextDx=0,  player.nextDy=-1); }
+  if (e.code === 'ArrowDown'  || e.code === 'KeyS') { player && (player.nextDx=0,  player.nextDy= 1); }
+  if (e.code === 'ArrowLeft'  || e.code === 'KeyA') { player && (player.nextDx=-1, player.nextDy= 0); }
+  if (e.code === 'ArrowRight' || e.code === 'KeyD') { player && (player.nextDx= 1, player.nextDy= 0); }
+
+  if (e.code === 'Space') {
+    if (gameState === 'waiting')  { initGame(); setMsg(''); }
+    else if (gameState === 'win') { nextLevel(); }
+    else if (gameState === 'gameover') { initGame(); setMsg(''); }
+    else if (gameState === 'playing') { gameState = 'paused'; setMsg('— PAUSA —'); }
+    else if (gameState === 'paused')  { gameState = 'playing'; setMsg(''); }
+  }
+});
+
+// ─── PLAYER UPDATE ────────────────────────────────────────────
+function updatePlayer() {
+  const p = player;
+  const spd = p.speed;
+  const cx = p.tx * TILE + TILE/2;
+  const cy = p.ty * TILE + TILE/2;
+
+  // Snap when close to tile center
+  if (Math.abs(p.x - cx) < spd+1 && Math.abs(p.y - cy) < spd+1) {
+    p.x = cx; p.y = cy;
+
+    // Try to apply queued turn
+    if (p.nextDx !== 0 || p.nextDy !== 0) {
+      const nx = p.tx + p.nextDx, ny = p.ty + p.nextDy;
+      if (!isWall(nx, ny)) {
+        p.dx = p.nextDx; p.dy = p.nextDy;
+        p.nextDx = 0;    p.nextDy = 0;
+      }
+    }
+    // Advance to next tile if no wall
+    const nx2 = p.tx + p.dx, ny2 = p.ty + p.dy;
+    if (!isWall(nx2, ny2)) { p.tx = nx2; p.ty = ny2; }
+    else                   { p.dx = 0;  p.dy = 0; }
+  }
+
+  p.x += p.dx * spd;
+  p.y += p.dy * spd;
+
+  // Tunnel
+  if (p.x < 0)    { p.x = W;     p.tx = COLS-1; }
+  if (p.x > W)    { p.x = 0;     p.tx = 0; }
+
+  // Eat
+  const cell = map[p.ty]?.[p.tx];
+  if (cell === 0) {
+    map[p.ty][p.tx] = 2; score += 10; totalDots--; updateHUD();
+  } else if (cell === 3) {
+    map[p.ty][p.tx] = 2; score += 50; totalDots--;
+    powerTimer = POWER_FRAMES;
+    goblins.forEach(g => { if (!g.dead && !g.inHouse) { g.scared = true; g.scaredTimer = POWER_FRAMES; } });
+    updateHUD();
+  }
+}
+
+// ─── GOBLIN UPDATE ────────────────────────────────────────────
+const DIRS = [{dx:1,dy:0},{dx:-1,dy:0},{dx:0,dy:1},{dx:0,dy:-1}];
+
+function updateGoblin(g) {
+  // Dead: wait to respawn
+  if (g.dead) {
+    if (--g.deadTimer <= 0) {
+      Object.assign(g, { dead:false, scared:false, inHouse:true, exitTimer:90,
+        tx:9, ty:9, x:9*TILE+TILE/2, y:9*TILE+TILE/2, dx:-1, dy:0 });
+    }
+    return;
+  }
+
+  // In house: bob, then exit
+  if (g.inHouse) {
+    g.y = g.ty*TILE + TILE/2 + Math.sin(Date.now()/300 + g.bobOffset)*3;
+    if (--g.exitTimer <= 0) {
+      g.inHouse = false;
+      g.ty = 7; g.y = 7*TILE + TILE/2; g.dy = -1; g.dx = 0;
+    }
+    return;
+  }
+
+  if (g.scared) { if (--g.scaredTimer <= 0) g.scared = false; }
+
+  const spd = g.scared ? g.speed * 0.55 : g.speed;
+  const cx = g.tx * TILE + TILE/2;
+  const cy = g.ty * TILE + TILE/2;
+
+  if (Math.abs(g.x - cx) < spd+1 && Math.abs(g.y - cy) < spd+1) {
+    g.x = cx; g.y = cy;
+
+    const valid = DIRS.filter(d => {
+      if (d.dx === -g.dx && d.dy === -g.dy) return false;  // no U-turn
+      const nx = g.tx + d.dx, ny = g.ty + d.dy;
+      return !isHouseOrWall(nx, ny);
+    });
+
+    let chosen;
+    if (valid.length === 0) {
+      chosen = { dx:-g.dx, dy:-g.dy };
+    } else if (g.scared) {
+      chosen = valid[Math.floor(Math.random() * valid.length)];
+    } else {
+      // Chase + 20% random
+      if (Math.random() < 0.2) {
+        chosen = valid[Math.floor(Math.random() * valid.length)];
+      } else {
+        chosen = valid.reduce((best, d) => {
+          const dist  = Math.hypot((g.tx+d.dx)    - player.tx, (g.ty+d.dy)    - player.ty);
+          const bDist = Math.hypot((g.tx+best.dx)  - player.tx, (g.ty+best.dy) - player.ty);
+          return dist < bDist ? d : best;
+        });
+      }
+    }
+
+    g.dx = chosen.dx; g.dy = chosen.dy;
+    g.tx += g.dx;    g.ty += g.dy;
+  }
+
+  g.x += g.dx * spd;
+  g.y += g.dy * spd;
+  if (g.x < 0)  { g.x = W;    g.tx = COLS-1; }
+  if (g.x > W)  { g.x = 0;    g.tx = 0; }
+
+  // Avanzar frame de animación mientras se mueve
+  if (g.dx !== 0 || g.dy !== 0) {
+    g.animTick++;
+    g.frameIdx = Math.floor(g.animTick / 7) % 4;
+  }
+}
+
+// ─── COLLISION ────────────────────────────────────────────────
+function checkCollisions() {
+  for (const g of goblins) {
+    if (g.dead || g.inHouse) continue;
+    if (Math.hypot(g.x - player.x, g.y - player.y) > TILE * 0.8) continue;
+
+    if (g.scared) {
+      g.dead = true; g.deadTimer = 150; g.scared = false;
+      score += 200; updateHUD();
+    } else {
+      lives--;
+      updateHUD();
+      if (lives <= 0) {
+        gameState = 'gameover';
+        setMsg('GAME OVER  ·  ESPACIO para reiniciar');
+      } else {
+        // Reset positions
+        player  = makePlayer();
+        goblins = [0,1,2,3].map(makeGoblin);
+        powerTimer = 0;
+      }
+      return;
+    }
+  }
+}
+
+// ─── DRAW ─────────────────────────────────────────────────────
+
+function drawMaze() {
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const x = c*TILE, y = r*TILE;
+      const v = map[r][c];
+      if (v === 1) {
+        ctx.fillStyle = '#152250';
+        ctx.fillRect(x, y, TILE, TILE);
+        // Inner border for depth
+        ctx.strokeStyle = '#4a90e2';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x+1, y+1, TILE-2, TILE-2);
+      } else if (v === 4) {
+        ctx.fillStyle = '#1a1025';
+        ctx.fillRect(x, y, TILE, TILE);
+        ctx.strokeStyle = '#6b21a8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x+1, y+1, TILE-2, TILE-2);
+      } else {
+        ctx.fillStyle = '#050510';
+        ctx.fillRect(x, y, TILE, TILE);
+        if (v === 0) {
+          ctx.beginPath();
+          ctx.arc(x+TILE/2, y+TILE/2, 3, 0, Math.PI*2);
+          ctx.fillStyle = '#d4a820';
+          ctx.fill();
+        } else if (v === 3) {
+          const r2 = 5 + Math.sin(Date.now()/180)*2;
+          ctx.beginPath();
+          ctx.arc(x+TILE/2, y+TILE/2, r2, 0, Math.PI*2);
+          ctx.fillStyle = '#f4d03f';
+          ctx.shadowColor = '#f4d03f';
+          ctx.shadowBlur = 12;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+        }
+      }
+    }
+  }
+}
+
+function drawPlayer() {
+  const p = player;
+  const size = TILE * 1.35;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  let angle = 0;
+  if      (p.dx === 1)  angle = 0;
+  else if (p.dx === -1) angle = Math.PI;
+  else if (p.dy === -1) angle = -Math.PI/2;
+  else if (p.dy ===  1) angle =  Math.PI/2;
+  ctx.rotate(angle);
+
+  if (imgBumpkin.complete && imgBumpkin.naturalWidth > 0) {
+    ctx.drawImage(imgBumpkin, -size/2, -size/2, size, size);
+  } else {
+    ctx.beginPath();
+    ctx.arc(0, 0, size/2, 0.2, Math.PI*2 - 0.2);
+    ctx.lineTo(0, 0);
+    ctx.closePath();
+    ctx.fillStyle = '#f4d03f';
+    ctx.fill();
+  }
+
+  // Glow while moving
+  if (p.dx !== 0 || p.dy !== 0) {
+    ctx.beginPath();
+    ctx.arc(0, 0, size/2 + 5, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(244,208,63,0.25)';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGoblinSprite(g, t) {
+  // t = animTick local
+  const scared = g.scared;
+  const flash  = scared && g.scaredTimer < 70 && Math.floor(Date.now()/150) % 2 === 0;
+
+  const bodyColor = scared ? (flash ? '#fff' : '#3b82f6') : g.color;
+  const darkColor = scared ? '#1d4ed8' : shadeColor(g.color, -40);
+  const walk = Math.sin(t * 0.28);  // oscilación de caminar
+
+  // --- Sombra bajo los pies ---
+  ctx.beginPath();
+  ctx.ellipse(0, 13, 9, 3, 0, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fill();
+
+  // --- Piernas (2) con movimiento alterno ---
+  const legSwing = walk * 5;
+  // pierna izquierda
+  ctx.save();
+  ctx.translate(-5, 6);
+  ctx.rotate((legSwing * Math.PI) / 180);
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.roundRect(-3, 0, 5, 8, 2);
+  ctx.fill();
+  // pie izquierdo
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.ellipse(0, 8, 4, 2.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // pierna derecha (oscila opuesto)
+  ctx.save();
+  ctx.translate(5, 6);
+  ctx.rotate((-legSwing * Math.PI) / 180);
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.roundRect(-2, 0, 5, 8, 2);
+  ctx.fill();
+  // pie derecho
+  ctx.fillStyle = '#222';
+  ctx.beginPath();
+  ctx.ellipse(0, 8, 4, 2.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // --- Cuerpo ---
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.roundRect(-9, -4, 18, 13, 4);
+  ctx.fill();
+  // detalle de barriga
+  ctx.fillStyle = scared ? '#93c5fd' : lightenColor(g.color, 30);
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 5, 4, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // --- Brazos (oscilan opuesto a piernas) ---
+  const armSwing = -walk * 20;
+  // brazo izquierdo
+  ctx.save();
+  ctx.translate(-9, -1);
+  ctx.rotate((armSwing * Math.PI) / 180);
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.roundRect(-3, 0, 5, 9, 2);
+  ctx.fill();
+  // puño
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.arc(0, 9, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // brazo derecho
+  ctx.save();
+  ctx.translate(9, -1);
+  ctx.rotate((-armSwing * Math.PI) / 180);
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.roundRect(-2, 0, 5, 9, 2);
+  ctx.fill();
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.arc(0, 9, 3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // --- Cuello ---
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.roundRect(-4, -9, 8, 6, 2);
+  ctx.fill();
+
+  // --- Cabeza ---
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -15, 11, 10, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Orejas puntiagudas (goblins clásicos)
+  ctx.fillStyle = bodyColor;
+  // oreja izquierda
+  ctx.beginPath();
+  ctx.moveTo(-11, -18); ctx.lineTo(-18, -26); ctx.lineTo(-5, -22);
+  ctx.closePath(); ctx.fill();
+  // oreja derecha
+  ctx.beginPath();
+  ctx.moveTo(11, -18); ctx.lineTo(18, -26); ctx.lineTo(5, -22);
+  ctx.closePath(); ctx.fill();
+  // interior orejas
+  ctx.fillStyle = darkColor;
+  ctx.beginPath();
+  ctx.moveTo(-10, -19); ctx.lineTo(-16, -25); ctx.lineTo(-6, -22);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(10, -19); ctx.lineTo(16, -25); ctx.lineTo(6, -22);
+  ctx.closePath(); ctx.fill();
+
+  if (!scared) {
+    // --- Ojos normales ---
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(-4, -16, 4, 4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( 4, -16, 4, 4, 0, 0, Math.PI*2); ctx.fill();
+    // pupilas que "miran" hacia donde va
+    const px = g.dx * 1.5, py = g.dy * 1.5;
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(-4+px, -16+py, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( 4+px, -16+py, 2, 0, Math.PI*2); ctx.fill();
+    // brillo en ojo
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(-3, -17, 1, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( 5, -17, 1, 0, Math.PI*2); ctx.fill();
+
+    // --- Nariz ---
+    ctx.fillStyle = darkColor;
+    ctx.beginPath(); ctx.ellipse(0, -13, 3, 2, 0, 0, Math.PI*2); ctx.fill();
+
+    // --- Boca (sonrisa malvada) ---
+    ctx.strokeStyle = darkColor;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, -10, 5, 0.2, Math.PI - 0.2);
+    ctx.stroke();
+    // colmillos
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.moveTo(-3,-10); ctx.lineTo(-2,-7); ctx.lineTo(-1,-10); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo( 1,-10); ctx.lineTo( 2,-7); ctx.lineTo( 3,-10); ctx.closePath(); ctx.fill();
+  } else {
+    // --- Ojos asustados ---
+    ctx.fillStyle = flash ? '#111' : '#fff';
+    ctx.beginPath(); ctx.ellipse(-4,-16,4,4,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse( 4,-16,4,4,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3b82f6';
+    // espirales de miedo (X en los ojos)
+    for (const ox of [-4, 4]) {
+      ctx.strokeStyle = flash ? '#fff' : '#1d4ed8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(ox-2,-18); ctx.lineTo(ox+2,-14); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ox+2,-18); ctx.lineTo(ox-2,-14); ctx.stroke();
+    }
+    // boca temblando
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, -10, 4, 0, Math.PI);
+    ctx.stroke();
+  }
+
+  // --- Gorro puntiagudo ---
+  if (!scared) {
+    ctx.fillStyle = darkColor;
+    ctx.beginPath();
+    ctx.moveTo(-8,-22); ctx.lineTo(0,-36); ctx.lineTo(8,-22);
+    ctx.closePath(); ctx.fill();
+    // estrella en el gorro
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath(); ctx.arc(0,-29,2.5,0,Math.PI*2); ctx.fill();
+  }
+}
+
+// Helpers de color
+function shadeColor(hex, amt) {
+  const n = parseInt(hex.slice(1),16);
+  const r = Math.max(0,Math.min(255,((n>>16)&0xff)+amt));
+  const g2= Math.max(0,Math.min(255,((n>>8) &0xff)+amt));
+  const b = Math.max(0,Math.min(255,( n     &0xff)+amt));
+  return `rgb(${r},${g2},${b})`;
+}
+function lightenColor(hex, amt) { return shadeColor(hex, amt); }
+
+function drawGoblins() {
+  for (const g of goblins) {
+    if (g.dead) continue;
+    ctx.save();
+    ctx.translate(g.x, g.y);
+
+    // Bob vertical
+    const bob = Math.sin(g.animTick * 0.25 + g.bobOffset) * 2;
+    ctx.translate(0, bob);
+
+    // Glow
+    ctx.shadowColor = g.scared ? '#3b82f6' : g.color;
+    ctx.shadowBlur  = g.scared ? 16 : 10;
+
+    drawGoblinSprite(g, g.animTick);
+
+    ctx.shadowBlur = 0;
+
+    // Nombre
+    ctx.font = 'bold 8px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = g.scared ? '#93c5fd' : g.color;
+    ctx.fillText(g.name, 0, 26);
+
+    ctx.restore();
+  }
+}
+
+function drawPowerBar() {
+  if (powerTimer <= 0) return;
+  const bw = 180, bh = 7;
+  const bx = W/2 - bw/2, by = H - 14;
+  const ratio = powerTimer / POWER_FRAMES;
+  ctx.fillStyle = '#111';
+  ctx.fillRect(bx-1, by-1, bw+2, bh+2);
+  const hue = ratio * 120;
+  ctx.fillStyle = `hsl(${hue},100%,55%)`;
+  ctx.fillRect(bx, by, bw*ratio, bh);
+  ctx.fillStyle = '#ccc';
+  ctx.font = '8px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('POWER', W/2, by - 3);
+}
+
+function drawOverlay() {
+  const cx = W/2;
+  if (gameState === 'waiting') {
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#f4d03f';
+    ctx.font = 'bold 42px Courier New';
+    ctx.shadowColor = '#f4d03f'; ctx.shadowBlur = 20;
+    ctx.fillText('BUMPKIN', cx, H/2 - 30);
+    ctx.fillText('PAC-MAN', cx, H/2 + 20);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#aaa';
+    ctx.font = '15px Courier New';
+    ctx.fillText('Presiona ESPACIO para jugar', cx, H/2 + 60);
+  }
+  if (gameState === 'gameover') {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ef4444';
+    ctx.font = 'bold 44px Courier New';
+    ctx.shadowColor = '#ef4444'; ctx.shadowBlur = 20;
+    ctx.fillText('GAME OVER', cx, H/2 - 20);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#f4d03f';
+    ctx.font = '20px Courier New';
+    ctx.fillText('Puntos: ' + score, cx, H/2 + 25);
+    ctx.fillStyle = '#888';
+    ctx.font = '13px Courier New';
+    ctx.fillText('ESPACIO para reiniciar', cx, H/2 + 60);
+  }
+  if (gameState === 'win') {
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.fillRect(0,0,W,H);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#4ade80';
+    ctx.font = 'bold 40px Courier New';
+    ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 20;
+    ctx.fillText('¡GANASTE!', cx, H/2 - 25);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#f4d03f';
+    ctx.font = '18px Courier New';
+    ctx.fillText('Nivel ' + level + ' completado  ·  Score: ' + score, cx, H/2 + 20);
+    ctx.fillStyle = '#888';
+    ctx.font = '13px Courier New';
+    ctx.fillText('ESPACIO para nivel ' + (level+1), cx, H/2 + 56);
+  }
+}
+
+// ─── MAIN LOOP ────────────────────────────────────────────────
+function update() {
+  if (gameState !== 'playing') return;
+
+  if (powerTimer > 0) powerTimer--;
+
+  updatePlayer();
+  goblins.forEach(updateGoblin);
+  checkCollisions();
+
+  if (totalDots <= 0 && gameState === 'playing') {
+    gameState = 'win';
+    setMsg('¡Nivel ' + level + ' completado!  ·  ESPACIO → nivel ' + (level+1));
+  }
+}
+
+function render() {
+  ctx.clearRect(0,0,W,H);
+  drawMaze();
+  drawPlayer();
+  drawGoblins();
+  drawPowerBar();
+  drawOverlay();
+}
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ─── START ────────────────────────────────────────────────────
+level = 1;
+resetMap();
+player  = makePlayer();
+goblins = [0,1,2,3].map(makeGoblin);
+updateHUD();
+loop();
+</script>
+</body>
+</html>
