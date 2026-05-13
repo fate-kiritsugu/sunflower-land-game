@@ -4,7 +4,6 @@ import { Bumpkin, GameState, Wardrobe } from "features/game/types/game";
 import { produce } from "immer";
 import { BumpkinParts } from "lib/utils/tokenUriBuilder";
 import { populateSaltFarm } from "features/game/types/salt";
-import { hasFeatureAccess } from "lib/flags";
 
 export type EquipBumpkinAction = {
   type: "bumpkin.equipped";
@@ -31,12 +30,9 @@ export function equip({
 
     assertEquipment({ game, equipment: action.equipment, bumpkin });
 
-    // Populate the salt farm with the new salt charges
-    if (hasFeatureAccess(game, "SALT_FARM")) {
-      populateSaltFarm({ game, now: createdAt });
-    }
-
     bumpkin.equipped = action.equipment;
+
+    populateSaltFarm({ gameBefore: state, gameAfter: game, now: createdAt });
 
     return game;
   });

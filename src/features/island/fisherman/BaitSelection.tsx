@@ -35,6 +35,7 @@ import Decimal from "decimal.js-light";
 import {
   getReelsPackGemPrice,
   getRemainingReels,
+  getRodCost,
 } from "features/game/events/landExpansion/castRod";
 import { isFishFrenzy, isFullMoon } from "features/game/types/calendar";
 import { SEASON_ICONS } from "../buildings/components/building/market/SeasonalSeeds";
@@ -53,6 +54,9 @@ const BAIT: FishingBait[] = [
   "Earthworm",
   "Grub",
   "Red Wiggler",
+  "Capsule Bait",
+  "Umbrella Bait",
+  "Crimson Baitfish",
   "Fishing Lure",
   "Fish Flake",
   "Fish Stick",
@@ -191,7 +195,27 @@ export const BaitSelection: React.FC<Props> = ({ onCast, state }) => {
 
   const fishingLimitReached = reelsLeft <= 0 || effectiveMultiplier > reelsLeft;
   const hasAncientRod = isWearableActive({ name: "Ancient Rod", game: state });
-  const rodsRequired = hasAncientRod ? 0 : effectiveMultiplier;
+
+  // Shrimp Onesie: every 15th lifetime reel awards +1 of every fish caught on
+  // that reel. The actual bonus is computed server-side in castRod against the
+  // "Rod Casted" farm activity counter; here we just preview how many of the
+  // upcoming reels in this cast would land on a milestone.
+  const SHRIMP_ONESIE_REEL_INTERVAL = 15;
+  const shrimpOnesieActive = isWearableActive({
+    name: "Shrimp Onesie",
+    game: state,
+  });
+  const previousCasts = state.farmActivity["Rod Casted"] ?? 0;
+  const shrimpOnesieMilestones = shrimpOnesieActive
+    ? Math.floor(
+        (previousCasts + effectiveMultiplier) / SHRIMP_ONESIE_REEL_INTERVAL,
+      ) - Math.floor(previousCasts / SHRIMP_ONESIE_REEL_INTERVAL)
+    : 0;
+
+  const { rodCost: rodsRequired } = getRodCost({
+    game: state,
+    multiplier: effectiveMultiplier,
+  });
   // Get reels required to make the cast
   const packsRequired = fishingLimitReached ? getExtraReelPacksRequired() : 0;
   // Get the gems cost for the reels
@@ -223,9 +247,9 @@ export const BaitSelection: React.FC<Props> = ({ onCast, state }) => {
     setShowConfirmationModal(false);
   };
 
-  const missingRod =
-    !hasAncientRod &&
-    (!state.inventory["Rod"] || state.inventory.Rod.lt(rodsRequired));
+  const missingRod = (state.inventory["Rod"] ?? new Decimal(0)).lt(
+    rodsRequired,
+  );
   const guaranteedCatchOptions = selectedBait
     ? getGuaranteedOptions(selectedBait)
     : [];
@@ -346,6 +370,15 @@ export const BaitSelection: React.FC<Props> = ({ onCast, state }) => {
                 ? t("fishing.oneReelLeft")
                 : t("fishing.reelsLeft", { reelsLeft })}
             </Label>
+            {shrimpOnesieMilestones > 0 && (
+              <Label icon={lightning} type="vibrant">
+                {shrimpOnesieMilestones === 1
+                  ? t("fishing.shrimpOnesie.singleReel")
+                  : t("fishing.shrimpOnesie.bulkReel", {
+                      reels: shrimpOnesieMilestones,
+                    })}
+              </Label>
+            )}
           </div>
         </InnerPanel>
         <DropdownPanel
@@ -397,7 +430,7 @@ export const BaitSelection: React.FC<Props> = ({ onCast, state }) => {
 
         <InnerPanel>
           <div className="flex flex-col justify-between space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Label type="default" className="text-xs ml-1" icon={multiCast}>
                 {t("fishing.multiCast")}
               </Label>

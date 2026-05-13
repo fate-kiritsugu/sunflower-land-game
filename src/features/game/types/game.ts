@@ -60,6 +60,7 @@ import {
   CompostName,
   CropCompostName,
   FruitCompostName,
+  GreenhouseCompostName,
   Worm,
 } from "./composters";
 import { FarmActivityName } from "./farmActivity";
@@ -79,7 +80,9 @@ import {
   FlowerSeedName,
   MutantFlowerName,
 } from "./flowers";
-import { PickledItemName } from "./pickled";
+import { FermentationProductName } from "./fermentationProducts";
+import { SpiceRackProductName } from "./spiceRackProducts";
+import { PickledCropName } from "./pickled";
 import { translate } from "lib/i18n/translate";
 import { SpecialEvents } from "./specialEvents";
 import { TradeableName } from "../actions/sellMarketResource";
@@ -123,6 +126,8 @@ import { League } from "features/leagues/leagues";
 import { Buff, BuffName } from "./buffs";
 import { CrustaceanChum, CrustaceanName, WaterTrapName } from "./crustaceans";
 import { SaltFarm } from "./salt";
+import type { AgingShed } from "../lib/agingShed";
+import type { SculptureName } from "./saltSculpture";
 
 export type CraftingQueueItem = {
   id: string;
@@ -163,6 +168,11 @@ export type CropFertiliser = {
 
 export type FruitFertiliser = {
   name: FruitCompostName;
+  fertilisedAt: number;
+};
+
+export type GreenhouseFertiliser = {
+  name: GreenhouseCompostName;
   fertilisedAt: number;
 };
 
@@ -243,7 +253,8 @@ export type MutantChicken =
   | "Love Chicken"
   | "Janitor Chicken"
   | "Sleepy Chicken"
-  | "Squid Chicken";
+  | "Squid Chicken"
+  | "Flamingo Chicken";
 
 export type MutantCow =
   | "Mootant"
@@ -251,7 +262,8 @@ export type MutantCow =
   | "Dr Cow"
   | "Baby Cow"
   | "Astronaut Cow"
-  | "Mermaid Cow";
+  | "Mermaid Cow"
+  | "Spa Cow";
 
 export type MutantSheep =
   | "Toxic Tuft"
@@ -259,7 +271,8 @@ export type MutantSheep =
   | "Nurse Sheep"
   | "Baby Sheep"
   | "Astronaut Sheep"
-  | "Mermaid Sheep";
+  | "Mermaid Sheep"
+  | "Spa Sheep";
 
 export type MutantAnimal = MutantChicken | MutantCow | MutantSheep;
 
@@ -279,6 +292,7 @@ export type Coupons =
   | "Sunflower Supporter"
   | "Potion Ticket"
   | "Bud Ticket"
+  | "Skill Reset Ticket"
   | "Bud Seedling"
   | "Community Coin"
   | "Arcade Token"
@@ -296,6 +310,8 @@ export type Coupons =
   | "Halloween Ticket 2025"
   | "Holiday Token 2025"
   | "Holiday Ticket 2025"
+  | "April Fools Token 2026"
+  | "April Fools Ticket 2026"
   | "Cheer"
   | "CluckCoin"
   | Keys
@@ -353,6 +369,9 @@ export const COUPONS: Record<Coupons, { description: string }> = {
   },
   "Bud Ticket": {
     description: translate("description.bud.ticket"),
+  },
+  "Skill Reset Ticket": {
+    description: translate("description.skillResetTicket"),
   },
   "Bud Seedling": {
     description: translate("description.bud.seedling"),
@@ -457,6 +476,16 @@ export const COUPONS: Record<Coupons, { description: string }> = {
   },
   "Holiday Ticket 2025": {
     description: translate("description.holidayTicket2025"),
+  },
+  "April Fools Token 2026": {
+    description: translate("description.aprilFoolsToken2026"),
+  },
+  "April Fools Ticket 2026": {
+    description: translate("description.aprilFoolsTicket2026"),
+  },
+  "Salt Rock": { description: "Collected during the Salt Awakening." },
+  "Salt Awakening Raffle Ticket": {
+    description: "A raffle ticket for the Salt Awakening chapter.",
   },
 };
 
@@ -672,7 +701,9 @@ export type InventoryItemName =
   | PetShopItemName
   | CrustaceanName
   | ChapterRaffleTicket
-  | PickledItemName;
+  | PickledCropName
+  | FermentationProductName
+  | SpiceRackProductName;
 
 export type Inventory = Partial<Record<InventoryItemName, Decimal>>;
 
@@ -741,6 +772,14 @@ export type PlantedFruit = {
 type OptionalCoordinates = {
   x?: number;
   y?: number;
+  /**
+   * Sub-tile pixel offset for rendering only, expressed as integer source
+   * pixels (range -8..8). One unit = one source pixel = PIXEL_SCALE screen
+   * pixels. Set by the pixel-perfect placement feature. Collision/AOE/
+   * adjacency logic ignores these and reads the integer x/y above.
+   */
+  oX?: number;
+  oY?: number;
 };
 
 export type Tree = {
@@ -804,6 +843,7 @@ export type GreenhousePlant = {
 
 export type GreenhousePot = {
   plant?: GreenhousePlant;
+  fertiliser?: GreenhouseFertiliser;
 };
 
 export type FruitPatch = {
@@ -816,6 +856,9 @@ export type FruitPatch = {
 export type BuildingProduct = {
   name: CookableName | ProcessedResource;
   readyAt: number;
+  /**
+   * @deprecated Use per-item quantity fields instead.
+   */
   amount?: number;
   boost?: Partial<Record<InventoryItemName, number>>;
   skills?: Partial<Record<BumpkinRevampSkillName, boolean>>;
@@ -838,7 +881,13 @@ export type Cancelled = Partial<{
 
 export type PlacedItem = {
   id: string;
-  coordinates?: { x: number; y: number };
+  /**
+   * Tile coordinates of the placed item. x/y are integer tiles.
+   * oX/oY are optional integer source-pixel offsets (range -8..8) used for
+   * rendering only — pixel-perfect placement. Collision/AOE/adjacency ignore
+   * them and read the integer x/y.
+   */
+  coordinates?: { x: number; y: number; oX?: number; oY?: number };
   readyAt?: number;
   createdAt?: number;
   removedAt?: number;
@@ -991,7 +1040,7 @@ export type FlowerShop = {
 export type FarmHand = {
   equipped: BumpkinParts;
   coordinates?: Coordinates;
-  location?: "farm" | "home";
+  location?: "farm" | "home" | "interior" | "level_one";
 };
 
 export type Mushroom = {
@@ -1301,6 +1350,7 @@ export type TradeListing = {
   tax?: number; // Defaults to 10% of the sfl
   createdAt: number;
   collection: CollectionName;
+  economy?: string;
   boughtAt?: number;
   buyerId?: number;
   signature?: string;
@@ -1317,6 +1367,7 @@ export type TradeOffer = {
   sfl: number;
   tax?: number; // Defaults to 10% of the sfl
   collection: CollectionName;
+  economy?: string;
   createdAt: number;
   fulfilledAt?: number;
   fulfilledById?: number;
@@ -1332,6 +1383,12 @@ type FishingSpot = {
   bait?: FishingBait;
   chum?: InventoryItemName;
   caught?: Partial<Record<InventoryItemName, number>>;
+  /**
+   * Per-fish breakdown of bonus units the Shrimp Onesie added during this
+   * cast. Already included in `caught`; surfaced separately so the catch
+   * UI can attribute the extra fish to the wearable.
+   */
+  shrimpOnesieBonus?: Partial<Record<InventoryItemName, number>>;
   guaranteedCatch?: FishName;
   maps?: Partial<Record<MarineMarvelName, number>>;
   /**
@@ -1387,6 +1444,7 @@ export type Christmas = {
 
 export type Currency =
   | "SFL"
+  | "Coins"
   | "Gem"
   | "Crimstone"
   | "Sunstone"
@@ -1396,7 +1454,8 @@ export type Currency =
   | "Easter Token 2025"
   | "Colors Token 2025"
   | "Halloween Token 2025"
-  | "Holiday Token 2025";
+  | "Holiday Token 2025"
+  | "April Fools Token 2026";
 
 export type ShopItemBase = {
   shortDescription: string;
@@ -1448,6 +1507,60 @@ export const ISLAND_EXPANSIONS: IslandType[] = [
 
 export type Home = {
   collectibles: Collectibles;
+};
+
+/**
+ * Interior is an entirely separate placement surface from Home.
+ * See `src/features/interior/` and `src/features/game/expansion/placeable/lib/interiorLayouts.ts`.
+ *
+ * Unlike Home, the interior uses a per-island tile mask (rooms have non-rectangular shapes)
+ * and a bottom-left-anchored coordinate system starting at (0,0).
+ *
+ * Each interior is split into one or more LEVELS — for now there's just `ground`,
+ * but future expansions (upstairs, basement, etc.) plug in alongside it without
+ * changing the existing data.
+ */
+export type InteriorLevel = {
+  collectibles: Collectibles;
+};
+
+/**
+ * Post-volcano home expansion tiers. Players unlock these sequentially via
+ * the `interior.upgrade` event. The list is intentionally one continuous
+ * progression and is *not* level-specific in the type — when level_two
+ * artwork ships we simply add its tier values here and the same `expansion`
+ * field on `Interior` continues to track progress.
+ *
+ * Names mirror the asset filenames in `src/assets/buildings/level-one-*.webp`.
+ */
+export type HomeExpansionTier =
+  | "level-one-start"
+  | "level-one-2"
+  | "level-one-3"
+  | "level-one-4"
+  | "level-one-5"
+  | "level-one-6"
+  | "level-one-full";
+
+export type LevelOne = {
+  collectibles: Collectibles;
+};
+
+export type InteriorLevelName = "ground" | "level_one";
+
+export type Interior = {
+  ground: InteriorLevel;
+  /**
+   * Present once the player has bought their first post-volcano upgrade.
+   * Lives at the /level_one route. Independent placements from `ground`.
+   */
+  level_one?: LevelOne;
+  /**
+   * Tracks which home-expansion tier the player has unlocked. Lives on the
+   * top-level Interior (not on a specific floor) so it can be shared across
+   * future levels. Undefined = no expansion bought yet.
+   */
+  expansion?: HomeExpansionTier;
 };
 
 export type PlantedFlower = {
@@ -1583,6 +1696,13 @@ export type AnimalResource =
   | "Milk";
 export type AnimalState = "idle" | "happy" | "sad" | "ready" | "sick";
 
+export type AnimalFeedBuffName = "Salt Lick" | "Honey Treat";
+
+export type AnimalFeedBuff = {
+  name: AnimalFeedBuffName;
+  harvestsRemaining: number;
+};
+
 export type Animal = {
   id: string;
   type: AnimalType;
@@ -1595,6 +1715,7 @@ export type Animal = {
   item: LoveAnimalItem;
   multiplier?: number;
   reward?: Reward;
+  feedBuff?: AnimalFeedBuff;
 };
 
 export type AnimalBuilding = UpgradableBuilding & {
@@ -1745,6 +1866,7 @@ export type FarmHands = {
 
 export interface GameState {
   home: Home;
+  interior: Interior;
   bank: Bank;
 
   buffs?: Partial<Record<BuffName, Buff>>;
@@ -1764,7 +1886,7 @@ export interface GameState {
   verified?: boolean;
 
   gems: {
-    history?: Record<string, { spent: number }>;
+    history?: Record<string, { spent: number; coinsSpent?: number }>;
   };
 
   flower: {
@@ -1788,6 +1910,7 @@ export interface GameState {
       setAt?: number;
     };
     network?: NetworkName;
+    economiesEnabled?: boolean;
   };
   coins: number;
   balance: Decimal;
@@ -1958,6 +2081,7 @@ export interface GameState {
   henHouse: AnimalBuilding;
   barn: AnimalBuilding;
   waterWell: UpgradableBuilding;
+  agingShed: AgingShed;
   petHouse: PetHouseBuilding;
 
   craftingBox: {
@@ -2036,6 +2160,11 @@ export interface GameState {
   };
   megastore?: {
     boughtAt: Partial<Record<ChapterTierItemName, number>>;
+    // Per-item, per-chapter purchase count. Used by the `limit` enforcement
+    // so a recurring item from a previous chapter doesn't stay blocked.
+    purchases?: Partial<
+      Record<ChapterTierItemName, { chapter: ChapterName; count: number }>
+    >;
   };
   withdrawals?: {
     amount: number;
@@ -2050,6 +2179,9 @@ export interface GameState {
     leagues?: League;
   };
   saltFarm: SaltFarm;
+  sculptures?: Partial<
+    Record<SculptureName, { level: number; upgradedAt?: number }>
+  >;
 }
 
 export type AOE = Partial<

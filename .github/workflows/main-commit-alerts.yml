@@ -249,6 +249,30 @@ jobs:
             return null;
           }
 
+          async function isPrApproved(prNumber) {
+            try {
+              const reviews = await githubRequest(`/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`);
+              const latestStateByReviewer = new Map();
+
+              for (const review of reviews) {
+                if (!review.user) continue;
+                const state = review.state;
+                if (state === "APPROVED" || state === "CHANGES_REQUESTED" || state === "DISMISSED") {
+                  latestStateByReviewer.set(review.user.id, state);
+                }
+              }
+
+              const states = [...latestStateByReviewer.values()];
+              const hasApproval = states.some((s) => s === "APPROVED");
+              const hasChangesRequested = states.some((s) => s === "CHANGES_REQUESTED");
+
+              return hasApproval && !hasChangesRequested;
+            } catch (error) {
+              console.log(`Review lookup failed for PR #${prNumber}: ${error.message}`);
+              return false;
+            }
+          }
+
           async function summarizeWithAi(metadata, files, diff) {
             if (!OPENAI_API_KEY) {
               appendSummary([
@@ -256,7 +280,7 @@ jobs:
                 "",
                 "AI summary skipped because `OPENAI_API_KEY` is not available to this workflow run.",
               ]);
-              return null;
+              return { risk: null, summary: null };
             }
 
             const response = await fetch("https://api.openai.com/v1/responses", {
@@ -272,7 +296,7 @@ jobs:
                   {
                     role: "system",
                     content:
-                      "You summarize git commits for an internal engineering alert. Reply with 2-4 short markdown bullet points. Be factual, concise, and focus on what changed and likely impact. If the diff looks mechanical or generated, say so. Do not include a heading.",
+                      "You summarize git commits for an internal engineering alert. Your first line must be exactly one of: RISK: LOW, RISK: MEDIUM, or RISK: HIGH — based on the scope, sensitivity, and potential impact of the change. Then add 2-4 short markdown bullet points. Be factual, concise, and focus on what changed and likely impact. If the diff looks mechanical or generated, say so. Do not include a heading.",
                   },
                   {
                     role: "user",
@@ -315,10 +339,14 @@ jobs:
               console.log(
                 `OpenAI response for ${metadata.sha} did not include extractable text. Top-level keys: ${Object.keys(payload).join(", ")}`,
               );
-              return null;
+              return { risk: null, summary: null };
             }
 
-            return summaryText;
+            const riskMatch = summaryText.match(/^RISK:\s*(LOW|MEDIUM|HIGH)\b/i);
+            const risk = riskMatch ? riskMatch[1].toUpperCase() : null;
+            const cleanedSummary = summaryText.replace(/^RISK:\s*(LOW|MEDIUM|HIGH)\s*/i, "").trim();
+
+            return { risk, summary: cleanedSummary };
           }
 
           function fallbackSummary(metadata, files) {
@@ -335,25 +363,53 @@ jobs:
             }
 
             bullets.push("- AI summary unavailable; showing commit metadata instead.");
-            return bullets.join("\n");
+            return { risk: null, summary: bullets.join("\n") };
           }
 
-          async function sendDiscordAlert(metadata, files, summary) {
+          const RISK_COLORS = {
+            LOW: 3066993,
+            MEDIUM: 16776960,
+            HIGH: 15158332,
+          };
+
+          async function sendDiscordAlert(metadata, files, summary, risk, pullRequest) {
+            const embedColor = risk ? (RISK_COLORS[risk] ?? 15158332) : 15158332;
+            const riskField = {
+              name: "Risk Score",
+              value: risk || "UNKNOWN",
+              inline: true,
+            };
+
+            const shouldTagTeam = risk !== "LOW";
             const payload = {
               username: "GitHub Commits Alerts",
-              content: "<@&1260758874189729867>",
-              allowed_mentions: {
-                roles: ["1260758874189729867"],
-              },
+              ...(shouldTagTeam && {
+                content: "<@&1260758874189729867>",
+                allowed_mentions: {
+                  roles: ["1260758874189729867"],
+                },
+              }),
               avatar_url:
                 "https://cdn.discordapp.com/avatars/487431320314576937/bd64361e4ba6313d561d54e78c9e7171.png",
               embeds: [
                 {
-                  title: "Direct commit to main detected",
-                  url: getCommitUrl(metadata.sha),
-                  color: 15158332,
+                  title: pullRequest
+                    ? "Unapproved PR merge to main detected"
+                    : "Direct commit to main detected",
+                  url: pullRequest ? pullRequest.url : getCommitUrl(metadata.sha),
+                  color: embedColor,
                   description: truncate(summary, 4000),
                   fields: [
+                    riskField,
+                    ...(pullRequest
+                      ? [
+                          {
+                            name: "Pull Request",
+                            value: `[#${pullRequest.number} - ${escapeDiscord(truncate(pullRequest.title, 100))}](${pullRequest.url})`,
+                            inline: true,
+                          },
+                        ]
+                      : []),
                     {
                       name: "Repository",
                       value: escapeDiscord(REPOSITORY),
@@ -389,7 +445,7 @@ jobs:
                     },
                   ],
                   footer: {
-                    text: "Repo-only alert: PR merges that bypass merge rules are not reliably detectable here.",
+                    text: "Alerts on direct commits and unapproved PR merges to main.",
                   },
                   timestamp: new Date().toISOString(),
                 },
@@ -439,10 +495,14 @@ jobs:
 
               const pullRequest = await findAssociatedPullRequest(sha, metadata.subject);
               if (pullRequest) {
-                continue;
+                const approved = await isPrApproved(pullRequest.number);
+                if (approved) {
+                  continue;
+                }
+                suspiciousCommits.push({ ...metadata, pullRequest });
+              } else {
+                suspiciousCommits.push(metadata);
               }
-
-              suspiciousCommits.push(metadata);
             }
 
             appendSummary([
@@ -450,23 +510,25 @@ jobs:
               "",
               `Processed ${commitRange.length} commit(s).`,
               `Skipped ${skippedBots} known bot commit(s).`,
-              `Flagged ${suspiciousCommits.length} direct commit(s) to \`main\`.`,
-              "",
-              "Note: repo-only automation cannot reliably detect PR merges that bypass merge rules.",
+              `Flagged ${suspiciousCommits.length} suspicious commit(s) to \`main\`.`,
             ]);
 
             for (const metadata of suspiciousCommits) {
               const files = getChangedFiles(metadata.sha);
               const diff = getDiffForSummary(metadata.sha);
 
-              let summary;
+              let result;
               try {
-                summary = await summarizeWithAi(metadata, files, diff);
+                result = await summarizeWithAi(metadata, files, diff);
               } catch (error) {
                 console.log(`AI summary failed for ${metadata.sha}: ${error.message}`);
               }
 
-              await sendDiscordAlert(metadata, files, summary || fallbackSummary(metadata, files));
+              if (!result || !result.summary) {
+                result = fallbackSummary(metadata, files);
+              }
+
+              await sendDiscordAlert(metadata, files, result.summary, result.risk, metadata.pullRequest);
             }
           }
 

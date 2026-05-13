@@ -543,6 +543,42 @@ describe("castRod", () => {
     ).not.toThrow();
   });
 
+  it("applies Deep Sea Slug boost which increases the daily fishing limit by 5", () => {
+    const now = Date.now();
+    const today = new Date(now).toISOString().split("T")[0];
+
+    expect(() =>
+      castRod({
+        action: { bait: "Earthworm", type: "rod.casted" },
+        state: {
+          ...farm,
+          collectibles: {
+            "Deep Sea Slug": [
+              {
+                id: "1",
+                createdAt: now,
+                coordinates: {
+                  x: 0,
+                  y: 0,
+                },
+              },
+            ],
+          },
+          fishing: {
+            dailyAttempts: {
+              [today]: 24,
+            },
+            wharf: {},
+          },
+          inventory: {
+            Rod: new Decimal(3),
+            Earthworm: new Decimal(1),
+          },
+        },
+      }),
+    ).not.toThrow();
+  });
+
   it("requires a player with Angler Waders boost hasn't maxed out their daily attempts", () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date("2023-10-11T09:00:00Z"));
@@ -640,6 +676,25 @@ describe("castRod", () => {
     });
 
     expect(state.inventory.Rod).toEqual(new Decimal(3));
+  });
+
+  it("subtracts only 1 rod per cast with the More With Less skill", () => {
+    const state = castRod({
+      action: { bait: "Earthworm", type: "rod.casted" },
+      state: {
+        ...farm,
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: { "More With Less": 1 },
+        },
+        inventory: {
+          Rod: new Decimal(3),
+          Earthworm: new Decimal(1),
+        },
+      },
+    });
+
+    expect(state.inventory.Rod).toEqual(new Decimal(2));
   });
 
   it("subtracts extra reels", () => {

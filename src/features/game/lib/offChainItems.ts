@@ -24,12 +24,15 @@ import { CONSUMABLES } from "../types/consumables";
 import { TRADE_LIMITS } from "../actions/tradeLimits";
 import { ANIMAL_FOODS } from "../types/animals";
 import { EXOTIC_CROPS } from "../types/beans";
-import { DOLLS, RECIPE_CRAFTABLES } from "./crafting";
+import { CRAFTABLE_BEARS, DOLLS, RECIPE_CRAFTABLES } from "./crafting";
 import { LAND_BIOMES } from "features/island/biomes/biomes";
 import { BUILDINGS } from "../types/buildings";
 import { FLOWERS } from "../types/flowers";
 import { WORKBENCH_MONUMENTS } from "../types/monuments";
 import { getKeys } from "lib/object";
+import { PICKLED_CROPS } from "../types/pickled";
+import { FERMENTATION_PRODUCTS } from "../types/fermentationProducts";
+import { SPICE_RACK_PRODUCTS } from "../types/spiceRackProducts";
 
 export const OFFCHAIN_ITEMS = new Set<InventoryItemName>([
   "Mark",
@@ -56,6 +59,7 @@ export const OFFCHAIN_ITEMS = new Set<InventoryItemName>([
     ...ANIMAL_FOODS,
     ...EXOTIC_CROPS,
     ...DOLLS,
+    ...CRAFTABLE_BEARS,
     ...LAND_BIOMES,
     ...WORKBENCH_MONUMENTS,
     ...PET_SHRINES,
@@ -72,6 +76,9 @@ export const OFFCHAIN_ITEMS = new Set<InventoryItemName>([
   ),
   ...HOURGLASSES,
   ...CRUSTACEANS,
+  ...PICKLED_CROPS,
+  ...FERMENTATION_PRODUCTS,
+  ...SPICE_RACK_PRODUCTS,
   "Cheer",
   "Obsidian Shrine",
   "Time Warp Totem",
@@ -84,4 +91,9 @@ export const OFFCHAIN_ITEMS = new Set<InventoryItemName>([
   "Holiday Ticket 2025",
   "Town Sign",
   "Acorn",
+  "CluckCoin",
+  "April Fools Token 2026",
+  "April Fools Ticket 2026",
+  "Salt Sculpture",
+  "Skill Reset Ticket",
 ]);

@@ -17,6 +17,7 @@ import { produce } from "immer";
 import { SEASONAL_SEEDS } from "features/game/types/seeds";
 import { isFullMoonBerry } from "./seedBought";
 import { updateBoostUsed } from "features/game/types/updateBoostUsed";
+import { FruitCompostName } from "features/game/types/composters";
 
 export type PlantFruitAction = {
   type: "fruit.planted";
@@ -48,7 +49,7 @@ function getHarvestsLeft({
 
 function getHarvestRange({ state }: { state: GameState }) {
   let minHarvest = 3;
-  let maxHarvest = 6;
+  let maxHarvest = 5;
   if (isCollectibleBuilt({ name: "Immortal Pear", game: state })) {
     if (state.bumpkin.skills["Pear Turbocharge"]) {
       minHarvest += 2;
@@ -66,6 +67,7 @@ export function getPlantedAt(
   patchFruitSeedName: PatchFruitSeedName,
   game: GameState,
   createdAt: number,
+  fruitPatchFertiliser?: FruitCompostName,
 ): { plantedAt: number; boostsUsed: { name: BoostName; value: string }[] } {
   if (!patchFruitSeedName) return { plantedAt: createdAt, boostsUsed: [] };
 
@@ -73,6 +75,7 @@ export function getPlantedAt(
   const { seconds: boostedTime, boostsUsed } = getFruitPatchTime(
     patchFruitSeedName,
     game,
+    fruitPatchFertiliser,
   );
 
   const offset = fruitTime - boostedTime;
@@ -122,6 +125,7 @@ export function getFruitTime({ game }: { game: GameState }): {
 export const getFruitPatchTime = (
   patchFruitSeedName: PatchFruitSeedName,
   game: GameState,
+  fruitPatchFertiliser?: FruitCompostName,
 ): { seconds: number; boostsUsed: { name: BoostName; value: string }[] } => {
   const { bumpkin } = game;
   let seconds = PATCH_FRUIT_SEEDS[patchFruitSeedName]?.plantSeconds ?? 0;
@@ -204,24 +208,24 @@ export const getFruitPatchTime = (
     boostsUsed.push({ name: "Catchup", value: "x0.9" });
   }
 
-  // Long Pickings - -50% growth in Apple and Banana, but 2x in the rest
+  // Long Pickings - -25% growth in Apple and Banana, but +10% in the rest
   if (bumpkin.skills["Long Pickings"]) {
     if (isAdvancedFruitSeed(patchFruitSeedName)) {
-      seconds = seconds * 0.5;
-      boostsUsed.push({ name: "Long Pickings", value: "x0.5" });
+      seconds = seconds * 0.75;
+      boostsUsed.push({ name: "Long Pickings", value: "x0.75" });
     } else {
-      seconds = seconds * 2;
-      boostsUsed.push({ name: "Long Pickings", value: "x2" });
+      seconds = seconds * 1.1;
+      boostsUsed.push({ name: "Long Pickings", value: "x1.1" });
     }
   }
 
   if (bumpkin.skills["Short Pickings"]) {
     if (isBasicFruitSeed(patchFruitSeedName)) {
-      seconds = seconds * 0.5;
-      boostsUsed.push({ name: "Short Pickings", value: "x0.5" });
+      seconds = seconds * 0.75;
+      boostsUsed.push({ name: "Short Pickings", value: "x0.75" });
     } else {
-      seconds = seconds * 2;
-      boostsUsed.push({ name: "Short Pickings", value: "x2" });
+      seconds = seconds * 1.1;
+      boostsUsed.push({ name: "Short Pickings", value: "x1.1" });
     }
   }
 
@@ -233,6 +237,11 @@ export const getFruitPatchTime = (
   if (isTemporaryCollectibleActive({ name: "Toucan Shrine", game })) {
     seconds *= 0.75;
     boostsUsed.push({ name: "Toucan Shrine", value: "x0.75" });
+  }
+
+  if (fruitPatchFertiliser === "Turbofruit Mix") {
+    seconds *= 0.8;
+    boostsUsed.push({ name: "Turbofruit Mix", value: "x0.8" });
   }
 
   return { seconds, boostsUsed };
@@ -315,6 +324,7 @@ export function plantFruit({
       action.seed,
       stateCopy,
       createdAt,
+      patch.fertiliser?.name,
     );
     patch.fruit = {
       name: fruitName,

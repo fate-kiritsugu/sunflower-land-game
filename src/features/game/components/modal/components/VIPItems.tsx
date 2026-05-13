@@ -18,7 +18,6 @@ import blueVipIcon from "assets/icons/blue_vip.webp";
 import purpleVipIcon from "assets/icons/purple_vip.webp";
 import multiCast from "src/assets/icons/multi-cast.webp";
 
-import trophyIcon from "assets/icons/trophy.png";
 import shopIcon from "assets/icons/shop.png";
 import { Button } from "components/ui/Button";
 import { SUNNYSIDE } from "assets/sunnyside";
@@ -153,6 +152,33 @@ export const VIPItems: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
       item: selected as VipBundle,
       type: "Web3",
     });
+
+    const isFirstVip = !vip?.bundles?.length;
+    const boughtStarterPack = !!state.farmActivity["Starter Pack Purchased"];
+
+    if (isFirstVip && boughtStarterPack) {
+      gameAnalytics.trackMilestone({
+        event: "VIP:Conversion:StarterPack",
+      });
+    }
+
+    if (isFirstVip) {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const accountAgeMs = Date.now() - state.createdAt;
+      const sevenDaysMs = 7 * DAY_MS;
+
+      if (accountAgeMs < sevenDaysMs) {
+        const dayBucket = Math.min(
+          6,
+          Math.max(0, Math.floor(accountAgeMs / DAY_MS)),
+        );
+        const tag = boughtStarterPack ? "HasStarterPack" : "NoStarterPack";
+        gameAnalytics.trackMilestone({
+          event: `VIP:Conversion:NewUser:Day${dayBucket}:${tag}`,
+        });
+      }
+    }
+
     setSelected(undefined);
   };
 
@@ -327,20 +353,11 @@ export const VIPItems: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     }
                   : undefined,
               },
-              { text: t("vip.benefit.competition"), icon: trophyIcon },
-              ...(currentChapter === "Paw Prints"
+              ...(currentChapter === "Salt Awakening"
                 ? [
                     {
-                      text: t("vip.benefit.bonusPetEnergy"),
-                      icon: SUNNYSIDE.icons.lightning,
-                    },
-                  ]
-                : []),
-              ...(currentChapter === "Crabs and Traps"
-                ? [
-                    {
-                      text: t("vip.benefit.bonusFishingAttempts"),
-                      icon: ITEM_DETAILS["Rod"].image,
+                      text: t("vip.benefit.bonusSaltYield"),
+                      icon: ITEM_DETAILS["Salt"].image,
                     },
                   ]
                 : []),

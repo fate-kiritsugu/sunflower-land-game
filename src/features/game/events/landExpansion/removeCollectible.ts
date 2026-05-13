@@ -12,7 +12,6 @@ import {
 import { PET_SHRINES } from "features/game/types/pets";
 import { populateSaltFarm } from "features/game/types/salt";
 import { isPetCollectible } from "./placeCollectible";
-import { hasFeatureAccess } from "lib/flags";
 
 export enum REMOVE_COLLECTIBLE_ERRORS {
   INVALID_COLLECTIBLE = "This collectible does not exist",
@@ -56,6 +55,14 @@ export function removeCollectible({
           );
         }
         return stateCopy.petHouse.pets[name];
+      } else if (location === "interior") {
+        return stateCopy.interior.ground.collectibles[name];
+      } else if (location === "level_one") {
+        const levelOne = stateCopy.interior.level_one;
+        if (!levelOne) {
+          throw new Error("Level one floor has not been unlocked");
+        }
+        return levelOne.collectibles[name];
       } else {
         return stateCopy.collectibles[name];
       }
@@ -105,11 +112,6 @@ export function removeCollectible({
       }
     }
 
-    // Populate the salt farm with the new salt charges
-    if (hasFeatureAccess(stateCopy, "SALT_FARM")) {
-      populateSaltFarm({ game: stateCopy, now: createdAt });
-    }
-
     delete collectibleToRemove.coordinates;
     collectibleToRemove.removedAt = createdAt;
 
@@ -117,6 +119,12 @@ export function removeCollectible({
       "Collectible Removed",
       stateCopy.farmActivity,
     );
+
+    populateSaltFarm({
+      gameBefore: state,
+      gameAfter: stateCopy,
+      now: createdAt,
+    });
 
     return stateCopy;
   });

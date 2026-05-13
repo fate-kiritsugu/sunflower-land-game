@@ -22,7 +22,7 @@ type Options = {
   createdAt?: number;
 };
 
-function getFlowerAmount({
+export function getFlowerAmount({
   game,
   criticalDrop = () => false,
 }: {
@@ -63,6 +63,14 @@ function getFlowerAmount({
   ) {
     amount += 1;
     boostsUsed.push({ name: "Chicory", value: "+1" });
+  }
+
+  if (
+    isCollectibleBuilt({ name: "Salt Crystal Flower", game }) &&
+    criticalDrop("Salt Crystal Flower")
+  ) {
+    amount += 1;
+    boostsUsed.push({ name: "Salt Crystal Flower", value: "+1" });
   }
 
   if (

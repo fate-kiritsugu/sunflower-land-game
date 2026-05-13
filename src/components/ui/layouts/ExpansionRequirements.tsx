@@ -13,6 +13,7 @@ import { InlineDialogue } from "features/world/ui/TypingMessage";
 import { SUNNYSIDE } from "assets/sunnyside";
 
 import { Label } from "../Label";
+import { SquareIcon } from "../SquareIcon";
 import { secondsToString } from "lib/utils/time";
 import { InnerPanel } from "../Panel";
 import { useAppTranslation } from "lib/i18n/useAppTranslations";
@@ -22,11 +23,15 @@ import { TimerDisplay } from "features/retreat/components/auctioneer/AuctionDeta
 import { expansionRequirements } from "features/game/events/landExpansion/revealLand";
 import { Button } from "../Button";
 import { ITEM_DETAILS } from "features/game/types/images";
+import { useSpeedUpPayment } from "features/game/lib/useSpeedUpPayment";
+import { SpeedUpPaymentSelector } from "features/game/components/SpeedUpPaymentSelector";
 import { gameAnalytics } from "lib/gameAnalytics";
 import { Context } from "features/game/GameProvider";
 import { craftingRequirementsMet } from "features/game/lib/craftingRequirement";
 import { hasRequiredIslandExpansion } from "features/game/lib/hasRequiredIslandExpansion";
 import vipIcon from "assets/icons/vip.webp";
+import coinsIcon from "assets/icons/coins.webp";
+import { formatNumber } from "lib/utils/formatNumber";
 import {
   useExpansionCoinCostWithVip,
   useVipAccess,
@@ -115,8 +120,8 @@ export const ExpansionRequirements: React.FC<Props> = ({
   const canExpand = craftingRequirementsMet(state, requirementsWithVipCoins);
 
   return (
-    <div className="flex flex-col justify-center">
-      <div className="flex flex-col justify-center p-2">
+    <>
+      <InnerPanel className="flex flex-col justify-center p-2 mb-1">
         <Label
           type="default"
           icon={SUNNYSIDE.icons.player}
@@ -124,15 +129,12 @@ export const ExpansionRequirements: React.FC<Props> = ({
         >
           {`Grimbly`}
         </Label>
-        <div
-          style={{
-            minHeight: "50px",
-          }}
-          className="mb-2"
-        >
+        <div style={{ minHeight: "50px" }} className="p-1">
           <InlineDialogue trail={25} message={details.description} />
         </div>
-        <div className="mb-2 flex justify-between items-center">
+      </InnerPanel>
+      <InnerPanel className="relative flex flex-col mb-1">
+        <div className="p-1 flex justify-between items-center mb-1">
           <Label type={"default"} icon={SUNNYSIDE.icons.basket}>
             {t("requirements")}
           </Label>
@@ -145,70 +147,79 @@ export const ExpansionRequirements: React.FC<Props> = ({
           </Label>
         </div>
 
-        <InnerPanel className="-ml-2 -mr-2 relative flex flex-col space-y-0.5">
-          {!!requirements.coins && (
-            <div key={"coins"} className="flex items-center gap-1 flex-wrap">
-              <RequirementLabel
-                type="coins"
-                balance={coins}
-                showLabel
-                requirement={effectiveCoinCost}
-              />
-
-              {showVipDiscount && (
-                <span className="flex items-center gap-1">
-                  <span className="line-through text-xs">
-                    {requirements.coins.toLocaleString()}
-                  </span>
-                  <img
-                    src={vipIcon}
-                    alt="VIP"
-                    className="h-4 w-4"
-                    title="VIP discount"
-                  />
-                </span>
-              )}
-            </div>
-          )}
-          {getKeys(requirements.resources).map((itemName) => {
-            return (
-              <RequirementLabel
-                key={itemName}
-                type="item"
-                item={itemName}
-                balance={inventory[itemName] ?? new Decimal(0)}
-                showLabel
-                requirement={new Decimal(requirements.resources[itemName] ?? 0)}
-              />
-            );
-          })}
-        </InnerPanel>
-
-        {!hasLevel && (
-          <>
-            <Label type="danger" icon={SUNNYSIDE.icons.lock} className="my-2">
-              {t("warning.level.required", {
-                lvl: requirements.bumpkinLevel,
-              })}
-            </Label>
-            <p className="text-xs mb-2">{t("statements.visit.firePit")}</p>
-          </>
+        {!!requirements.coins && !showVipDiscount && (
+          <RequirementLabel
+            type="coins"
+            balance={coins}
+            showLabel
+            requirement={effectiveCoinCost}
+          />
         )}
-      </div>
+        {!!requirements.coins && showVipDiscount && (
+          <div
+            key={"coins"}
+            className="flex justify-between items-center min-h-[26px]"
+          >
+            <div className="flex items-center">
+              <SquareIcon icon={coinsIcon} width={7} />
+              <span className="text-xs ml-1">{t("coins")}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="line-through text-xs">
+                {requirements.coins.toLocaleString()}
+              </span>
+              <Label
+                className="whitespace-nowrap font-secondary"
+                type={coins >= effectiveCoinCost ? "transparent" : "danger"}
+              >
+                {formatNumber(effectiveCoinCost)}
+              </Label>
+              <img
+                src={vipIcon}
+                alt="VIP"
+                className="h-4 w-4"
+                title="VIP discount"
+              />
+            </div>
+          </div>
+        )}
+        {getKeys(requirements.resources).map((itemName) => {
+          return (
+            <RequirementLabel
+              key={itemName}
+              type="item"
+              item={itemName}
+              balance={inventory[itemName] ?? new Decimal(0)}
+              showLabel
+              requirement={new Decimal(requirements.resources[itemName] ?? 0)}
+            />
+          );
+        })}
+      </InnerPanel>
+
+      {!hasLevel && (
+        <InnerPanel className="mb-1">
+          <Label type="danger" icon={SUNNYSIDE.icons.lock}>
+            {t("warning.level.required", {
+              lvl: requirements.bumpkinLevel,
+            })}
+          </Label>
+          <p className="text-xs">{t("statements.visit.firePit")}</p>
+        </InnerPanel>
+      )}
       <Button onClick={onExpand} disabled={!canExpand}>
         {t("expand")}
       </Button>
-    </div>
+    </>
   );
 };
 
 export const Expanding: React.FC<{
   state: GameState;
   onClose: () => void;
-  onInstantExpanded: () => void;
+  onInstantExpanded: (cost: number, paymentMethod?: "gems" | "coins") => void;
   readyAt: number;
-  gems: number;
-}> = ({ state, onClose, onInstantExpanded, readyAt, gems }) => {
+}> = ({ state, onClose, onInstantExpanded, readyAt }) => {
   const { t } = useAppTranslation();
 
   const { requirements } = expansionRequirements({ game: state });
@@ -218,6 +229,14 @@ export const Expanding: React.FC<{
   );
 
   const hasAccess = !hasRequiredIslandExpansion(state.island.type, "desert");
+
+  const payment = useSpeedUpPayment({ readyAt, game: state });
+  const cost =
+    payment.paymentMethod === "coins" ? payment.coinCost : payment.gemCost;
+  const costIcon =
+    payment.paymentMethod === "coins"
+      ? SUNNYSIDE.ui.coins
+      : ITEM_DETAILS.Gem.image;
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -250,24 +269,27 @@ export const Expanding: React.FC<{
             </div>
           </div>
         </div>
+        {hasAccess && <SpeedUpPaymentSelector payment={payment} />}
       </div>
 
       <div className="flex">
         <Button onClick={onClose}>{t("close")}</Button>
         {hasAccess && (
           <Button
-            disabled={!state.inventory.Gem?.gte(gems)}
+            disabled={!payment.canAfford}
             className="relative ml-1"
-            onClick={onInstantExpanded}
+            onClick={() => onInstantExpanded(cost, payment.paymentMethod)}
           >
             {t("gems.speedUp")}
-            <Label
-              type={state.inventory.Gem?.gte(gems) ? "default" : "danger"}
-              icon={ITEM_DETAILS.Gem.image}
-              className="flex absolute right-0 -top-5"
-            >
-              {gems}
-            </Label>
+            {!payment.canPayWithCoins && (
+              <Label
+                type={payment.canAfford ? "default" : "danger"}
+                icon={costIcon}
+                className="flex absolute right-0 -top-5"
+              >
+                {cost}
+              </Label>
+            )}
           </Button>
         )}
       </div>

@@ -32,6 +32,7 @@ type EffectName =
   | "withdraw.wearables"
   | "withdraw.buds"
   | "wallet.linked"
+  | "social.linked"
   | "account.migrated"
   | "moderation.kicked"
   | "moderation.muted"
@@ -59,7 +60,8 @@ type EffectName =
   | "leagues.updated"
   | "liquidity.registered"
   | "appInstall.generate"
-  | "farmHand.unlocked";
+  | "farmHand.unlocked"
+  | "economies.exchanged";
 
 type VisitEffectName = "farm.helped" | "farm.cheered" | "farm.followed";
 
@@ -108,6 +110,7 @@ export type StateMachineStateName =
   | "marketplaceBulkListingsCancelling"
   | "marketplaceBulkOffersCancelling"
   | "linkingWallet"
+  | "linkingSocial"
   | "assigningNFT"
   | "cheeringFarm"
   | "followingFarm"
@@ -124,7 +127,8 @@ export type StateMachineStateName =
   | "updatingLeagues"
   | "generatingAppInstall"
   | "pickingUpWaterTrap"
-  | "resettingPetRequests";
+  | "resettingPetRequests"
+  | "exchangingEconomy";
 
 export type StateMachineVisitStateName =
   | "helpingFarm"
@@ -168,6 +172,7 @@ export const STATE_MACHINE_EFFECTS: Record<
   "marketplace.bulkListingsCancelled": "marketplaceBulkListingsCancelling",
   "marketplace.bulkOffersCancelled": "marketplaceBulkOffersCancelling",
   "wallet.linked": "linkingWallet",
+  "social.linked": "linkingSocial",
   "nft.assigned": "assigningNFT",
   "admin.NFTAssigned": "assigningNFT",
   "farm.cheered": "cheeringFarm",
@@ -185,6 +190,7 @@ export const STATE_MACHINE_EFFECTS: Record<
   "marketplace.buyBulkResources": "marketplaceBuyingBulkResources",
   "leagues.updated": "updatingLeagues",
   "appInstall.generate": "generatingAppInstall",
+  "economies.exchanged": "exchangingEconomy",
 };
 
 export const STATE_MACHINE_VISIT_EFFECTS: Record<

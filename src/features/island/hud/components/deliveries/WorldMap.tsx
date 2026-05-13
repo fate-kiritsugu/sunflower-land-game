@@ -11,11 +11,14 @@ import { useSound } from "lib/utils/hooks/useSound";
 import { getBumpkinLevel } from "features/game/lib/level";
 import { Label } from "components/ui/Label";
 import { isMobile } from "mobile-device-detect";
+import { useTimeBasedFeatureAccess } from "lib/utils/hooks/useTimeBasedFeatureAccess";
+import { useSelector } from "@xstate/react";
 
 const showDebugBorders = false;
 
 export const WorldMap: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { gameService } = useContext(Context);
+  const state = useSelector(gameService, (state) => state.context.state);
   const { t } = useAppTranslation();
 
   const navigate = useNavigate();
@@ -26,11 +29,13 @@ export const WorldMap: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const [reqLvl, setReqLvl] = useState(1);
 
-  const level = getBumpkinLevel(
-    gameService.getSnapshot().context.state.bumpkin?.experience ?? 0,
-  );
-  const hasFaction = gameService.getSnapshot().context.state.faction;
+  const level = getBumpkinLevel(state.bumpkin?.experience ?? 0);
+  const hasFaction = state.faction;
   const canTeleportToFactionHouse = level >= 7 && hasFaction;
+  const isAprilFoolsEventActive = useTimeBasedFeatureAccess({
+    featureName: "APRIL_FOOLS_EVENT_FLAG",
+    game: state,
+  });
 
   const getFactionHouseRoute = () => {
     switch (hasFaction?.name) {
@@ -305,7 +310,7 @@ export const WorldMap: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           border: showDebugBorders ? "2px solid red" : "",
           position: "absolute",
           left: "22%",
-          bottom: "24%",
+          bottom: "15%",
         }}
         className={`flex justify-center items-center ${
           level >= 4 ? "cursor-pointer" : "cursor-not-allowed"
@@ -313,7 +318,9 @@ export const WorldMap: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         onClick={() => {
           if (level < 4) return;
           travel.play();
-          navigate("/world/beach");
+          navigate("/world/beach", {
+            state: { previousSceneId: "default" },
+          });
           onClose();
         }}
       >
@@ -342,6 +349,57 @@ export const WorldMap: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         ) : (
           <span className="map-text text-xxs sm:text-sm">
             {t("world.beach")}
+          </span>
+        )}
+      </div>
+
+      {/* Digging — north-west of the beach hot-spot, same level gate */}
+      <div
+        style={{
+          width: "10%",
+          height: "16%",
+          border: showDebugBorders ? "2px solid red" : "",
+          position: "absolute",
+          left: "22%",
+          bottom: "45%",
+        }}
+        className={`flex justify-center items-center ${
+          level >= 4 ? "cursor-pointer" : "cursor-not-allowed"
+        }`}
+        onClick={() => {
+          if (level < 4) return;
+          travel.play();
+          navigate("/world/beach", {
+            state: { previousSceneId: "digging" },
+          });
+          onClose();
+        }}
+      >
+        {level < 4 ? (
+          isMobile ? (
+            <img
+              src={SUNNYSIDE.icons.lock}
+              className="h-4 sm:h-6 ml-1 img-highlight"
+              onClick={() => {
+                setShowPopup(true);
+                setReqLvl(4);
+                setTimeout(() => {
+                  setShowPopup(false);
+                }, 1300);
+              }}
+            />
+          ) : (
+            <Label
+              type="default"
+              icon={SUNNYSIDE.icons.lock}
+              className="text-sm"
+            >
+              {t("world.lvl.requirement", { lvl: 4 })}
+            </Label>
+          )
+        ) : (
+          <span className="map-text text-xxs sm:text-sm">
+            {t("world.digging")}
           </span>
         )}
       </div>

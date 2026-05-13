@@ -29,10 +29,18 @@ import { FlowerDashboard } from "features/flowerDashboard/FlowerDashboard";
 import { EconomyDashboard } from "features/economyDashboard/EconomyDashboard";
 import { RetentionDashboard } from "features/retentionDashboard/RetentionDashboard";
 import { ChapterDashboard } from "features/chapterDashboard/ChapterDashboard";
+import { EconomyHub } from "features/economyHub/EconomyHub";
 import { GameWrapper } from "features/game/expansion/Game";
+import { Interior } from "features/interior/Interior";
+import { LevelOne } from "features/interior/LevelOne";
 import { ModalProvider } from "features/game/components/modal/ModalProvider";
 import { FeedProvider } from "features/social/FeedContext";
-import { AIBuilder } from "features/portal-ai/AIBuilder";
+import { MinigameDashboard } from "features/minigame/MinigameDashboard";
+import {
+  PlayerEconomyEditor,
+  PlayerEconomyEditorCreate,
+  PlayerEconomyEditorEdit,
+} from "features/playerEconomyEditor/PlayerEconomyEditor";
 
 // Lazy load routes
 const World = lazy(() =>
@@ -141,6 +149,14 @@ export const Navigation: React.FC = () => {
                                       </div>
                                     }
                                   />
+                                  <Route
+                                    path="chapter"
+                                    element={
+                                      <div className="absolute inset-0 z-50">
+                                        <ChapterDashboard />
+                                      </div>
+                                    }
+                                  />
                                   <Route path=":name" element={null} />
                                 </Route>
                                 <Route
@@ -200,8 +216,44 @@ export const Navigation: React.FC = () => {
                                   }
                                 />
                                 <Route
-                                  path="/ai-builder"
-                                  element={<AIBuilder />}
+                                  path="/economy-hub"
+                                  element={
+                                    <GameWrapper>
+                                      <EconomyHub />
+                                    </GameWrapper>
+                                  }
+                                />
+                                <Route
+                                  path="/economy/:slug"
+                                  element={<MinigameDashboard />}
+                                />
+                                <Route
+                                  path="/economy-editor"
+                                  element={<PlayerEconomyEditor />}
+                                />
+                                <Route
+                                  path="/economy-editor/create"
+                                  element={<PlayerEconomyEditorCreate />}
+                                />
+                                <Route
+                                  path="/economy-editor/edit/:slug"
+                                  element={<PlayerEconomyEditorEdit />}
+                                />
+                                <Route
+                                  path="/interior"
+                                  element={
+                                    <GameWrapper>
+                                      <Interior />
+                                    </GameWrapper>
+                                  }
+                                />
+                                <Route
+                                  path="/level_one"
+                                  element={
+                                    <GameWrapper>
+                                      <LevelOne />
+                                    </GameWrapper>
+                                  }
                                 />
                                 <Route
                                   path="*"

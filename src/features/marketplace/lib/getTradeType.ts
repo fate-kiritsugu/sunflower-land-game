@@ -8,7 +8,9 @@ export type TradeType = "instant" | "onchain";
 /**
  * Note from Elias:
  * This object is used to determine whether an item can be airdropped offchain or not.
- * Even though all trades are "instant" now, please add supply limited items as "onchain" in this object
+ * Even though all trades are "instant" now, please add items with a set supply
+ * (e.g. auction items) as "onchain" in this object. Time-limited items
+ * (e.g. chapter track rewards) can remain "instant".
  */
 export const ITEM_TRADE_TYPES: {
   collectibles: Record<InventoryItemName, TradeType>;
@@ -129,6 +131,8 @@ export const ITEM_TRADE_TYPES: {
     "Cosmo Doll": "instant",
     "Bigfin Doll": "instant",
     "Solar Doll": "instant",
+    "Salt Doll": "instant",
+    "Jacuzzi Bear": "instant",
     "Gold Cooking Trophy": "instant",
     "Silver Cooking Trophy": "instant",
     "Bronze Cooking Trophy": "instant",
@@ -545,6 +549,11 @@ export const ITEM_TRADE_TYPES: {
     Obsidian: "instant",
     "Lava Pit": "instant",
     Salt: "instant",
+    "Refined Salt": "instant",
+    "Salt Lick": "instant",
+    "Honey Treat": "instant",
+    "Spice Base": "instant",
+    "Spiced Cheese": "instant",
     Leather: "instant",
     Wool: "instant",
     "Merino Wool": "instant",
@@ -595,6 +604,7 @@ export const ITEM_TRADE_TYPES: {
     "Gold Pass": "instant",
     "Potion Ticket": "instant",
     "Bud Ticket": "instant",
+    "Skill Reset Ticket": "instant",
     "Bud Seedling": "onchain",
     "Catch the Kraken Banner": "instant",
     "Mermaid Scale": "instant",
@@ -991,6 +1001,14 @@ export const ITEM_TRADE_TYPES: {
     "Pickled Cabbage": "instant",
     "Pickled Onion": "instant",
     "Pickled Pepper": "instant",
+    "Pickled Broccoli": "instant",
+    "Greenhouse Glow": "instant",
+    "Greenhouse Goodie": "instant",
+    "Sproutroot Surprise": "instant",
+    "Turbofruit Mix": "instant",
+    "Capsule Bait": "instant",
+    "Umbrella Bait": "instant",
+    "Crimson Baitfish": "instant",
     "Crimson Carp": "instant",
     "Battle Fish": "instant",
     "Lemon Shark": "instant",
@@ -1368,6 +1386,59 @@ export const ITEM_TRADE_TYPES: {
     "Crimstone Clam": "instant",
     "Poseidon's Throne": "instant",
     "Fish Kite": "instant",
+    "April Fools Token 2026": "instant",
+    "April Fools Ticket 2026": "instant",
+    "Teeth Toy": "instant",
+    "Fake Treasure": "instant",
+    "Fake Mouse": "instant",
+    "Pet Tree": "instant",
+    "Definitely not a Flower": "instant",
+    "Bumpkin Rug": "instant",
+    "Goblin Rug": "instant",
+    "Pet Rug": "instant",
+    "Jester in a box": "instant",
+    "The Sunflower Man Statue": "instant",
+    "Salt Sculpture": "instant",
+
+    // Salt Awakening Auction Items
+    Pufferfish: "onchain",
+    "Fat Crab": "onchain",
+    "Navigation Table": "onchain",
+    "Royal Crab Pot": "onchain",
+    "Crab House": "onchain",
+    "Speed Trap": "onchain",
+
+    // Salt Awakening Mutants
+    "Flamingo Chicken": "instant",
+    "Salt Crystal Flower": "instant",
+    "Spa Cow": "instant",
+    "Spa Sheep": "instant",
+    "Deep Sea Pig": "instant",
+    "Deep Sea Slug": "instant",
+    "Crystal Shrimp": "instant",
+
+    // Salt Awakening Tickets
+    "Salt Rock": "instant",
+    "Salt Awakening Raffle Ticket": "instant",
+    "Salt Awakening Banner": "instant",
+    "Salt Dino Egg": "instant",
+    "Big Table": "instant",
+    Crate: "instant",
+    "Empty Pot": "instant",
+    "High Table": "instant",
+    "Large Podium": "instant",
+    "Long Table": "instant",
+    "Royal Podium": "instant",
+    "Square Table": "instant",
+    Stool: "instant",
+
+    // Salt Awakening Megastore
+    "Crystal Altar": "instant",
+    "Dino Egg Trophy": "instant",
+    "Salt Lamp": "instant",
+    "Salt Crystal Bed": "instant",
+    "World Map Rug": "instant",
+    "Ripped Salt Bag": "instant",
   },
   wearables: {
     "Walrus Onesie": "instant",
@@ -1379,6 +1450,13 @@ export const ITEM_TRADE_TYPES: {
     "Fish Hook Vest": "instant",
     "Fish Hook Waders": "instant",
     "Corn Silk Hair": "instant",
+
+    // Salt Awakening Megastore
+    "Spa Hat": "instant",
+    "Spa Robe": "instant",
+    "Spa Slippers": "instant",
+    "Bubble Aura": "instant",
+    "Deep Sea Salt Cave Background": "instant",
     "New Years Crown": "instant",
     "Beige Farmer Potion": "instant",
     "Dark Brown Farmer Potion": "instant",
@@ -1891,6 +1969,37 @@ export const ITEM_TRADE_TYPES: {
     "Holiday Feast Background": "instant",
     "Cozy Reindeer Onesie": "instant",
     "Diamond Snow Aura": "instant",
+    "Neon Noiz Jacket": "instant",
+    "404 Chic Top": "instant",
+    "Neon Noiz Pants": "instant",
+    "404 Chic Skirt": "instant",
+    "Admin Fools Tools": "instant",
+    "Neon Noiz Shoes": "instant",
+    "404 Chic Boots": "instant",
+    "Aether Specs": "instant",
+    "Faulty Barrier Background": "instant",
+    "Cardboard Wings": "onchain",
+    "Glitch Aura": "onchain",
+    "Bumpkin Eyes": "instant",
+    "Big Wink Eyes": "instant",
+    "Fun Eyes": "instant",
+    "Giggle Eyes": "instant",
+    "Grumpy Eyes": "instant",
+    "Relaxed Eyes": "instant",
+    "Scared Eyes": "instant",
+    "Surprised Eyes": "instant",
+    "Wink Eyes": "instant",
+    "Bumpkin Smile": "instant",
+    "Angry Mouth": "instant",
+    "Baby Teeth": "instant",
+    "Big Smile": "instant",
+    "Fanged Smile": "instant",
+    "Gold Teeth": "instant",
+    "Infernal Smile": "instant",
+    "Neutral Mouth": "instant",
+    "Pistol Shrimp": "onchain",
+    "Clam Shell Hat": "instant",
+    "Shrimp Onesie": "instant",
   },
 };
 
@@ -1909,6 +2018,7 @@ export const getTradeType = ({
 }) => {
   if (collection === "buds") return "onchain";
   if (collection === "pets") return "onchain";
+  if (collection === "economies") return "instant";
   if (collection === "wearables") {
     const item = ITEM_NAMES[id];
 

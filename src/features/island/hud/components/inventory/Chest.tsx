@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useRef } from "react";
 import { Box } from "components/ui/Box";
 import { ITEM_DETAILS } from "features/game/types/images";
 import {
@@ -42,8 +42,6 @@ import {
 } from "features/island/lib/alternateArt";
 import { BANNERS } from "features/game/types/banners";
 import { InnerPanel } from "components/ui/Panel";
-import { ConfirmationModal } from "components/ui/ConfirmationModal";
-import { HourglassType } from "features/island/collectibles/components/Hourglass";
 import { TranslationKeys } from "lib/i18n/dictionaries/types";
 import { BED_FARMHAND_COUNT } from "features/game/types/beds";
 import { WEATHER_SHOP_ITEM_COSTS } from "features/game/types/calendar";
@@ -65,11 +63,25 @@ import { getPetImage } from "features/island/pets/lib/petShared";
 import { NFTName } from "features/game/events/landExpansion/placeNFT";
 import { MONUMENTS, REWARD_ITEMS } from "features/game/types/monuments";
 import { useNow } from "lib/utils/hooks/useNow";
-import { HOURGLASSES } from "features/game/events/landExpansion/burnCollectible";
 import { PlaceableLocation } from "features/game/types/collectibles";
 import { NPCPlaceable } from "features/island/bumpkin/components/NPC";
 import { FarmHandDetails } from "components/ui/layouts/FarmHandDetails";
 import { getBudImage } from "lib/buds/types";
+import { FLOWERS } from "features/game/types/flowers";
+
+const DECORATIVE_FLOWER_NAMES: CollectibleName[] = [
+  "Dawn Flower",
+  "Rainbow Flower",
+  "Definitely not a Flower",
+  "Desert Rose",
+  "Chicory",
+  "Chamomile",
+  "Lunalist",
+  "Venus Bumpkin Trap",
+  "Black Hole Flower",
+  "Anemone Flower",
+  "Salt Crystal Flower",
+];
 
 export const ITEM_ICONS: (
   season: TemperateSeasonName,
@@ -108,11 +120,6 @@ interface PanelContentProps {
   isSaving?: boolean;
 }
 
-export type TimeBasedConsumables =
-  | HourglassType
-  | "Time Warp Totem"
-  | "Super Totem";
-
 const PanelContent: React.FC<PanelContentProps> = ({
   isSaving,
   onPlace,
@@ -127,46 +134,21 @@ const PanelContent: React.FC<PanelContentProps> = ({
   const { t } = useAppTranslation();
   const now = useNow();
 
-  const [confirmationModal, showConfirmationModal] = useState(false);
-
   // Bumpkin is not placeable from the chest
   if (!selectedChestItem || selectedChestItem.name === "Bumpkin") return null;
 
   const handlePlace = () => {
-    if (
-      selectedChestItem.name === "Gnome" ||
-      HOURGLASSES.includes(selectedChestItem.name as HourglassType) ||
-      selectedChestItem.name === "Time Warp Totem" ||
-      selectedChestItem.name === "Super Totem"
-    ) {
-      showConfirmationModal(true);
-    } else if (selectedChestItem.name === "FarmHand") {
+    if (selectedChestItem.name === "FarmHand") {
       onPlaceFarmHand?.(selectedChestItem.id);
-      closeModal();
+    } else if (
+      selectedChestItem.name === "Bud" ||
+      selectedChestItem.name === "Pet"
+    ) {
+      onPlaceNFT?.(selectedChestItem.id, selectedChestItem.name);
     } else {
-      selectedChestItem.name === "Bud" || selectedChestItem.name === "Pet"
-        ? onPlaceNFT && onPlaceNFT(selectedChestItem.id, selectedChestItem.name)
-        : onPlace && onPlace(selectedChestItem.name);
-      closeModal();
+      onPlace?.(selectedChestItem.name);
     }
-  };
-
-  const getResourceNodeCondition = (hourglass: TimeBasedConsumables) => {
-    const hourglassCondition: Record<TimeBasedConsumables, TranslationKeys> = {
-      "Blossom Hourglass": "landscape.hourglass.resourceNodeCondition.blossom",
-      "Gourmet Hourglass": "landscape.hourglass.resourceNodeCondition.gourmet",
-      "Harvest Hourglass": "landscape.hourglass.resourceNodeCondition.harvest",
-      "Orchard Hourglass": "landscape.hourglass.resourceNodeCondition.orchard",
-      "Ore Hourglass": "landscape.hourglass.resourceNodeCondition.ore",
-      "Timber Hourglass": "landscape.hourglass.resourceNodeCondition.timber",
-      "Time Warp Totem": "landscape.timeWarpTotem.resourceNodeCondition",
-      "Super Totem": "landscape.superTotem.resourceNodeCondition",
-      "Fisher's Hourglass": "landscape.hourglass.resourceNodeCondition.fishers",
-    };
-
-    return t(hourglassCondition[hourglass], {
-      selectedChestItem: selectedChestItem.name,
-    });
+    closeModal();
   };
 
   if (selectedChestItem.name === "FarmHand") {
@@ -231,78 +213,23 @@ const PanelContent: React.FC<PanelContentProps> = ({
     );
   }
 
-  const redGnomeBoostInstruction = () => {
-    return (
-      <div className="flex flex-col gap-y-2 text-xs">
-        <p>{t("landscape.confirmation.gnomes.one")}</p>
-        <p>{t("landscape.confirmation.gnomes.two")}</p>
-
-        <div className="flex justify-center mt-2 space-x-2">
-          <img src={ITEM_DETAILS["Cobalt"].image} className="w-12" />
-          <img src={ITEM_DETAILS["Gnome"].image} className="w-12" />
-          <img src={ITEM_DETAILS["Clementine"].image} className="w-12" />
-        </div>
-
-        <div className="flex justify-center">
-          <img src={ITEM_DETAILS["Crop Plot"].image} className="w-12" />
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <>
-      <InventoryItemDetails
-        game={state}
-        details={{
-          item: selectedChestItem.name,
-        }}
-        properties={{
-          showOpenSeaLink: true,
-        }}
-        actionView={
-          onPlace && (
-            <Button onClick={handlePlace} disabled={isSaving}>
-              {isSaving ? t("saving") : t("place.map")}
-            </Button>
-          )
-        }
-      />
-      <ConfirmationModal
-        show={confirmationModal}
-        onHide={() => showConfirmationModal(false)}
-        messages={
-          selectedChestItem.name === "Gnome"
-            ? [redGnomeBoostInstruction()]
-            : [
-                getResourceNodeCondition(
-                  selectedChestItem.name as TimeBasedConsumables,
-                ),
-                t("landscape.confirmation.hourglass.one", {
-                  selectedChestItem: selectedChestItem.name,
-                }),
-                t("landscape.confirmation.hourglass.two", {
-                  selectedChestItem: selectedChestItem.name,
-                }),
-                selectedChestItem.name === "Time Warp Totem" ||
-                selectedChestItem.name === "Super Totem" ? (
-                  <Label type="danger" icon={SUNNYSIDE.icons.cancel}>
-                    {t("landscape.timeWarpTotem.nonStack")}
-                  </Label>
-                ) : (
-                  ""
-                ),
-              ]
-        }
-        onCancel={() => showConfirmationModal(false)}
-        onConfirm={() => {
-          onPlace && onPlace(selectedChestItem.name);
-          closeModal();
-          showConfirmationModal(false);
-        }}
-        confirmButtonLabel={t("place")}
-      />
-    </>
+    <InventoryItemDetails
+      game={state}
+      details={{
+        item: selectedChestItem.name,
+      }}
+      properties={{
+        showOpenSeaLink: true,
+      }}
+      actionView={
+        onPlace && (
+          <Button onClick={handlePlace} disabled={isSaving}>
+            {isSaving ? t("saving") : t("place.map")}
+          </Button>
+        )
+      }
+    />
   );
 };
 
@@ -335,7 +262,8 @@ export const Chest: React.FC<Props> = ({
   // For petHouse, only show buds and petNFTs (no regular buds for petHouse)
   const buds = location === "petHouse" ? {} : getChestBuds(state);
   const petsNFTs = getChestPets(state.pets?.nfts ?? {});
-  const farmHands = getChestFarmHands(state.farmHands);
+  const farmHands =
+    location === "petHouse" ? {} : getChestFarmHands(state.farmHands);
 
   const chestMap = getChestItems(state);
   const { t } = useAppTranslation();
@@ -450,6 +378,20 @@ export const Chest: React.FC<Props> = ({
     (name) => name in WEATHER_SHOP_ITEM_COSTS,
   );
 
+  const flowers = collectibleNames
+    .filter((name) => name in FLOWERS || DECORATIVE_FLOWER_NAMES.includes(name))
+    .sort((a, b) => {
+      const decorativeA = DECORATIVE_FLOWER_NAMES.indexOf(a);
+      const decorativeB = DECORATIVE_FLOWER_NAMES.indexOf(b);
+      const isDecorativeA = decorativeA !== -1;
+      const isDecorativeB = decorativeB !== -1;
+
+      if (isDecorativeA && isDecorativeB) return decorativeA - decorativeB;
+      if (isDecorativeA) return -1;
+      if (isDecorativeB) return 1;
+
+      return a.localeCompare(b);
+    });
   const dolls = collectibleNames.filter((name) => name in DOLLS);
   const pets = collectibleNames.filter((name) => name in PET_TYPES);
 
@@ -463,6 +405,7 @@ export const Chest: React.FC<Props> = ({
   const weatherItemsSet = new Set(weatherItems);
   const dollsSet = new Set(dolls);
   const petsSet = new Set(pets);
+  const flowersSet = new Set(flowers);
 
   const boosts = collectibleNames
     .filter(
@@ -481,7 +424,8 @@ export const Chest: React.FC<Props> = ({
         !buildingsSet.has(name) &&
         !monumentsSet.has(name) &&
         !villageProjectsSet.has(name) &&
-        !bedsSet.has(name),
+        !bedsSet.has(name) &&
+        !flowersSet.has(name),
     );
 
   const boostsSet = new Set(boosts);
@@ -497,6 +441,7 @@ export const Chest: React.FC<Props> = ({
       !monumentsSet.has(name) &&
       !dollsSet.has(name) &&
       !petsSet.has(name) &&
+      !flowersSet.has(name) &&
       !villageProjectsSet.has(name),
   );
 
@@ -554,6 +499,11 @@ export const Chest: React.FC<Props> = ({
       items: dolls,
       label: "dolls",
       icon: ITEM_DETAILS["Doll"].image,
+    },
+    {
+      items: flowers,
+      label: "flowers",
+      icon: ITEM_DETAILS["Prism Petal"].image,
     },
     {
       items: decorations,

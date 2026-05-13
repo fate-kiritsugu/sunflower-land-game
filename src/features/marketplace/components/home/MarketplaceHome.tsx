@@ -73,14 +73,15 @@ export const MarketplaceNavigation: React.FC = () => {
     return () => window.clearTimeout(id);
   }, [hideLimited, crabChapterStartMs]);
 
+  const { t } = useTranslation();
+
+  const { gameService } = useContext(Context);
+
   useEffect(() => {
     const token = authState.context.user.rawToken as string;
     if (CONFIG.API_URL) preloadCollections(token, !hideLimited);
   }, [hideLimited, authState.context.user.rawToken]);
 
-  const { t } = useTranslation();
-
-  const { gameService } = useContext(Context);
   const price = gameService.getSnapshot().context.prices.sfl?.usd ?? 0.0;
   const { farmId } = gameService.getSnapshot().context;
 
@@ -218,6 +219,10 @@ export const MarketplaceNavigation: React.FC = () => {
             <Routes>
               <Route path="/profile" element={<MarketplaceProfile />} />
               <Route path="/hot" element={<MarketplaceHotNow />} />
+              <Route
+                path="/economies/:economy/:id"
+                element={<Tradeable hideLimited={hideLimited} />}
+              />
               <Route
                 path="/collection/*"
                 element={<Collection hideLimited={hideLimited} />}

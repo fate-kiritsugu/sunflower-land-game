@@ -5,11 +5,10 @@ import { GameState } from "features/game/types/game";
 import { getObjectEntries } from "lib/object";
 import {
   getSaltChargeGenerationTime,
-  getSaltNodeCoordinates,
   MAX_STORED_SALT_CHARGES_PER_NODE,
   SALT_FARM_UPGRADES,
 } from "features/game/types/salt";
-import { hasFeatureAccess } from "lib/flags";
+import { updateBoostUsed } from "features/game/types/updateBoostUsed";
 
 export type UpgradeSaltFarmAction = {
   type: "saltFarm.upgraded";
@@ -26,9 +25,6 @@ export function upgradeSaltFarm({
   action: _action,
   createdAt,
 }: Options): GameState {
-  if (!hasFeatureAccess(state, "SALT_FARM")) {
-    throw new Error("Salt farm not enabled");
-  }
   return produce(state, (copy) => {
     const { saltFarm } = copy;
     const nextLevel = saltFarm.level + 1;
@@ -63,7 +59,10 @@ export function upgradeSaltFarm({
 
     const currentNodes = Object.keys(saltFarm.nodes).length;
     const nodesToAdd: number = totalExpectedNodes - currentNodes;
-    const interval = getSaltChargeGenerationTime({ gameState: copy });
+    const { chargeGenerationTimeMs: interval, boostsUsed } =
+      getSaltChargeGenerationTime({
+        gameState: copy,
+      });
 
     for (let i = 0; i < nodesToAdd; i++) {
       copy.saltFarm.nodes[`${currentNodes + i}`] = {
@@ -72,15 +71,15 @@ export function upgradeSaltFarm({
           storedCharges: MAX_STORED_SALT_CHARGES_PER_NODE,
           nextChargeAt: createdAt + interval,
         },
-        coordinates: {
-          ...getSaltNodeCoordinates(
-            copy.inventory["Basic Land"]?.toNumber() ?? 3,
-            `${currentNodes + i}`,
-          ),
-        },
       };
     }
     copy.saltFarm.level = nextLevel;
+
+    copy.boostsUsedAt = updateBoostUsed({
+      game: copy,
+      boostNames: boostsUsed,
+      createdAt,
+    });
 
     return copy;
   });

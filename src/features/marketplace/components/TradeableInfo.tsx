@@ -50,6 +50,7 @@ import {
   MinigameCurrencyDisclaimerPanel,
   showsMinigameCurrencyDisclaimer,
 } from "./MinigameCurrencyDisclaimerPanel";
+import { MINIGAME_TOKEN_IMAGE_FALLBACK } from "features/minigame/lib/minigameTokenIcons";
 
 const formatDate = (date: Date) => {
   return date.toLocaleDateString("en-US", {
@@ -140,11 +141,16 @@ export const TradeableImage: React.FC<{
   const isBumpkinBackground = display.name.includes("Background");
   const itemBackground = useResourceBackdrop ? brownBg : grassBg;
   const background =
-    display.type === "buds" || display.type === "pets"
+    display.type === "buds" ||
+    display.type === "pets" ||
+    display.type === "economies"
       ? display.image
       : itemBackground;
   const showFullImage =
-    isBumpkinBackground || display.type === "buds" || display.type === "pets";
+    isBumpkinBackground ||
+    display.type === "buds" ||
+    display.type === "pets" ||
+    display.type === "economies";
 
   const [isPortrait, setIsPortrait] = React.useState(false);
 
@@ -165,6 +171,15 @@ export const TradeableImage: React.FC<{
         src={showFullImage ? imageSrc : background}
         className="w-full rounded-sm"
         onError={(e) => {
+          if (
+            display.type === "economies" &&
+            display.minigameCurrencyKey &&
+            imageSrc !== MINIGAME_TOKEN_IMAGE_FALLBACK
+          ) {
+            setImageSrc(MINIGAME_TOKEN_IMAGE_FALLBACK);
+            e.currentTarget.src = MINIGAME_TOKEN_IMAGE_FALLBACK;
+            return;
+          }
           // Swap to the fallback only once to avoid infinite error loops.
           if (!fallbackImage || imageSrc === fallbackImage) {
             return;
@@ -184,6 +199,13 @@ export const TradeableImage: React.FC<{
             bottom: "50%",
           }}
           onLoad={handleImageLoad}
+          onError={(e) => {
+            if (display.type === "economies" && display.minigameCurrencyKey) {
+              if (e.currentTarget.src !== MINIGAME_TOKEN_IMAGE_FALLBACK) {
+                e.currentTarget.src = MINIGAME_TOKEN_IMAGE_FALLBACK;
+              }
+            }
+          }}
         />
       )}
     </InnerPanel>
@@ -240,6 +262,18 @@ export const TradeableDescription: React.FC<{
           </Label>
           <div className="flex flex-col space-y-1">
             <p className="text-xs mb-1">{display.description}</p>
+            {display.type === "economies" &&
+              tradeable?.collection === "economies" &&
+              tradeable.economy && (
+                <p className="text-xs mb-1">
+                  <a
+                    className="underline text-blue-700"
+                    href={`#/economy/${encodeURIComponent(tradeable.economy)}`}
+                  >
+                    {t("marketplace.economies.openDashboard")}
+                  </a>
+                </p>
+              )}
             <div className="flex flex-col space-y-1">
               {isWearable ? (
                 <div className="flex items-center space-x-1">

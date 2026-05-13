@@ -40,6 +40,10 @@ import {
   placeCollectible,
   PlaceCollectibleAction,
 } from "./landExpansion/placeCollectible";
+import {
+  upgradeInterior,
+  UpgradeInteriorAction,
+} from "./landExpansion/upgradeInterior";
 import { cook, RecipeCookedAction } from "./landExpansion/cook";
 import {
   collectRecipe,
@@ -57,6 +61,27 @@ import {
   collectProcessedResource,
   CollectProcessedResourceAction,
 } from "./landExpansion/collectProcessedResource";
+import {
+  collectFermentation,
+  CollectFermentationAction,
+} from "./landExpansion/collectFermentation";
+import {
+  startFermentation,
+  StartFermentationAction,
+} from "./landExpansion/startFermentation";
+import { startAging, StartAgingAction } from "./landExpansion/startAging";
+import {
+  collectAgedFish,
+  CollectAgedFishAction,
+} from "./landExpansion/collectAgedFish";
+import {
+  startSpiceRack,
+  StartSpiceRackAction,
+} from "./landExpansion/startSpiceRack";
+import {
+  collectSpiceRack,
+  CollectSpiceRackAction,
+} from "./landExpansion/collectSpiceRack";
 import { feedBumpkin, FeedBumpkinAction } from "./landExpansion/feedBumpkin";
 import { detectBot, DetectBotAction } from "./detectBot";
 import { choseSkill, ChoseSkillAction } from "./landExpansion/choseSkill";
@@ -258,6 +283,10 @@ import {
   PlantGreenhouseAction,
 } from "./landExpansion/plantGreenhouse";
 import {
+  fertiliseGreenhouse,
+  FertiliseGreenhouseAction,
+} from "./landExpansion/fertiliseGreenhouse";
+import {
   oilGreenhouse,
   OilGreenhouseAction,
 } from "./landExpansion/oilGreenHouse";
@@ -387,6 +416,10 @@ import {
   CompleteNPCChoreAction,
 } from "./landExpansion/completeNPCChore";
 import { claimProduce, ClaimProduceAction } from "./landExpansion/claimProduce";
+import {
+  applyAnimalFeedBuff,
+  ApplyAnimalFeedBuffAction,
+} from "./landExpansion/applyAnimalFeedBuff";
 import { sellBounty, SellBountyAction } from "./landExpansion/sellBounty";
 import {
   buyChapterItem,
@@ -415,14 +448,7 @@ import {
   CollectLavaPitAction,
 } from "./landExpansion/collectLavaPit";
 import { startLavaPit, StartLavaPitAction } from "./landExpansion/startLavaPit";
-import {
-  startSaltHarvest,
-  StartSaltHarvestAction,
-} from "./landExpansion/startSaltHarvest";
-import {
-  claimSaltHarvest,
-  ClaimSaltHarvestAction,
-} from "./landExpansion/claimSaltHarvest";
+import { harvestSalt, HarvestSaltAction } from "./landExpansion/harvestSalt";
 import { placeLavaPit, PlaceLavaPitAction } from "./landExpansion/placeLavaPit";
 import { moveLavaPit, MoveLavaPitAction } from "./landExpansion/moveLavaPit";
 import { buyResource, ResourceBoughtAction } from "./landExpansion/buyResource";
@@ -466,6 +492,10 @@ import {
   updateNetwork,
   UpdateNetworkAction,
 } from "./landExpansion/updateNetwork";
+import {
+  updateEconomiesEnabled,
+  EconomiesEnabledAction,
+} from "./updateEconomiesEnabled";
 import {
   acknowledgeRewardBox,
   AcknowledgeRewardBoxAction,
@@ -611,6 +641,10 @@ import {
   upgradeSaltFarm,
   UpgradeSaltFarmAction,
 } from "./landExpansion/upgradeSaltFarm";
+import {
+  upgradeSaltSculpture,
+  UpgradeSaltSculptureAction,
+} from "./landExpansion/upgradeSaltSculpture";
 
 export type PlayingEvent =
   | ObsidianExchangedAction
@@ -631,6 +665,7 @@ export type PlayingEvent =
   | OilGreenhouseAction
   | HarvestGreenhouseAction
   | PlantGreenhouseAction
+  | FertiliseGreenhouseAction
   | LandExpansionPlantAction
   | LandExpansionFertiliseCropAction
   | LandExpansionRemoveCropAction
@@ -647,6 +682,12 @@ export type PlayingEvent =
   | CancelProcessedResourceAction
   | ProcessProcessedResourceAction
   | CollectProcessedResourceAction
+  | StartFermentationAction
+  | CollectFermentationAction
+  | StartAgingAction
+  | CollectAgedFishAction
+  | StartSpiceRackAction
+  | CollectSpiceRackAction
   | FeedBumpkinAction
   | DetectBotAction
   | ChoseSkillAction
@@ -739,6 +780,7 @@ export type PlayingEvent =
   | CancelQueuedCraftingAction
   | CompleteNPCChoreAction
   | ClaimProduceAction
+  | ApplyAnimalFeedBuffAction
   | BuyChapterItemAction
   | ClaimPurchaseAction
   | RedeemTradeRewardsAction
@@ -746,8 +788,7 @@ export type PlayingEvent =
   | AcknowledgeCalendarEventAction
   | CollectLavaPitAction
   | StartLavaPitAction
-  | StartSaltHarvestAction
-  | ClaimSaltHarvestAction
+  | HarvestSaltAction
   | UpgradeSaltFarmAction
   | CancelQueuedRecipeAction
   | AcknowledgeOnChainAirdropAction
@@ -755,6 +796,7 @@ export type PlayingEvent =
   | ExchangeFlowerAction
   | BuyFloatingShopItemAction
   | UpdateNetworkAction
+  | EconomiesEnabledAction
   | BuyMinigameItemAction
   | AcknowledgeRewardBoxAction
   | OpenRewardBoxAction
@@ -788,7 +830,9 @@ export type PlayingEvent =
   | PromoteFarmhandAction
   | SpeedUpProcessingAction
   | ClaimTrackMilestoneAction
-  | StartTrialAction;
+  | StartTrialAction
+  | UpgradeSaltSculptureAction
+  | UpgradeInteriorAction;
 
 export type LocalVisitingEvent =
   | CollectGarbageAction
@@ -902,6 +946,7 @@ export const PLAYING_EVENTS: Handlers<PlayingEvent> = {
   "greenhouse.oiled": oilGreenhouse,
   "greenhouse.harvested": harvestGreenHouse,
   "greenhouse.planted": plantGreenhouse,
+  "greenhouse.fertilised": fertiliseGreenhouse,
   "minigame.itemPurchased": purchaseMinigameItem,
   "minigame.prizeClaimed": claimMinigamePrize,
   "minigame.attemptStarted": startMinigameAttempt,
@@ -927,6 +972,12 @@ export const PLAYING_EVENTS: Handlers<PlayingEvent> = {
   "processedResource.cancelled": cancelProcessedResource,
   "processedResource.processed": processProcessedResource,
   "processedResource.collected": collectProcessedResource,
+  "fermentation.started": startFermentation,
+  "fermentation.collected": collectFermentation,
+  "agingRack.started": startAging,
+  "agingRack.collected": collectAgedFish,
+  "spiceRack.started": startSpiceRack,
+  "spiceRack.collected": collectSpiceRack,
   "bumpkin.feed": feedBumpkin,
   "trackMilestone.claimed": claimTrackMilestone,
   "skill.chosen": choseSkill,
@@ -1014,6 +1065,7 @@ export const PLAYING_EVENTS: Handlers<PlayingEvent> = {
   "crafting.cancelled": cancelQueuedCrafting,
   "chore.fulfilled": completeNPCChore,
   "produce.claimed": claimProduce,
+  "animal.feedBuffApplied": applyAnimalFeedBuff,
   "chapterItem.bought": buyChapterItem,
   "purchase.claimed": claimPurchase,
   "reward.redeemed": redeemTradeReward,
@@ -1021,8 +1073,7 @@ export const PLAYING_EVENTS: Handlers<PlayingEvent> = {
   "calendarEvent.acknowledged": acknowledgeCalendarEvent,
   "lavaPit.collected": collectLavaPit,
   "lavaPit.started": startLavaPit,
-  "saltHarvest.started": startSaltHarvest,
-  "saltHarvest.claimed": claimSaltHarvest,
+  "salt.harvested": harvestSalt,
   "saltFarm.upgraded": upgradeSaltFarm,
   "upgrade.spedUp": speedUpUpgrade,
   "socialTask.completed": completeSocialTask,
@@ -1030,6 +1081,7 @@ export const PLAYING_EVENTS: Handlers<PlayingEvent> = {
   "exchange.flower": exchangeFlower,
   "floatingShopItem.bought": buyFloatingShopItem,
   "network.updated": updateNetwork,
+  "economies.enabled": updateEconomiesEnabled,
   "minigameItem.bought": buyEventShopItem,
   "rewardBox.acknowledged": acknowledgeRewardBox,
   "rewardBox.opened": openRewardBox,
@@ -1061,6 +1113,8 @@ export const PLAYING_EVENTS: Handlers<PlayingEvent> = {
   "bumpkin.moved": moveBumpkin,
   "bumpkin.removedPlacement": removeBumpkinPlacement,
   "farmhand.promoted": promoteFarmhand,
+  "saltSculpture.upgraded": upgradeSaltSculpture,
+  "interior.upgrade": upgradeInterior,
 };
 
 export const LOCAL_VISITING_EVENTS: Handlers<LocalVisitingEvent> = {
