@@ -1,7 +1,11 @@
 import { getKeys } from "lib/object";
-import { BumpkinItem } from "../types/bumpkin";
-import { BedName, InventoryItemName, RecipeCraftableName } from "../types/game";
-import { ChapterName } from "../types/chapters";
+import type { BumpkinItem } from "../types/bumpkin";
+import type {
+  BedName,
+  InventoryItemName,
+  RecipeCraftableName,
+} from "../types/game";
+import type { ChapterName } from "../types/chapters";
 
 export type DollName =
   | "Doll"
@@ -73,7 +77,10 @@ export const CRAFTABLE_BEARS: Record<CraftableBearName, object> = {
 
 export type RecipeCollectibleName = Extract<
   | RecipeCraftableName
-  | Exclude<BedName, "Double Bed" | "Messy Bed" | "Pearl Bed">
+  | Exclude<
+      BedName,
+      "Double Bed" | "Messy Bed" | "Pearl Bed" | "Salt Crystal Bed"
+    >
   | DollName
   | CraftableBearName,
   InventoryItemName

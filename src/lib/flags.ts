@@ -4,6 +4,13 @@ import { TEAM_USERNAMES } from "./access";
 
 export const RONIN_AIRDROP_ENDDATE = new Date("2025-11-04T00:00:00Z");
 
+// Ronin Waypoint (and the migration flow / transfer option for it) stops being
+// available after 16th Sept 2026
+export const WAYPOINT_WALLET_ENDDATE = new Date("2026-09-16T00:00:00Z");
+
+export const isWaypointWalletDisabled = () =>
+  Date.now() >= WAYPOINT_WALLET_ENDDATE.getTime();
+
 export const adminFeatureFlag = ({ wardrobe, inventory }: GameState) =>
   CONFIG.NETWORK === "amoy" ||
   (!!((wardrobe["Gift Giver"] ?? 0) > 0) && !!inventory["Beta Pass"]?.gt(0));
@@ -18,7 +25,7 @@ const usernameFeatureFlag = (game: GameState) => {
 };
 
 const betaFeatureFlag = ({ inventory }: GameState) =>
-  CONFIG.NETWORK === "amoy" || !!inventory["Beta Pass"]?.gt(0);
+  CONFIG.NETWORK === "amoy" || !!inventory?.["Beta Pass"]?.gt(0);
 
 export const testnetFeatureFlag = () => CONFIG.NETWORK === "amoy";
 
@@ -73,6 +80,10 @@ export const TIME_BASED_FEATURE_FLAG_WINDOWS = {
     start: new Date("2026-04-01T00:00:00Z"),
     end: new Date("2026-04-08T00:00:00Z"),
   },
+  RONIN_WAYPOINT_DEPRECATION: {
+    start: WAYPOINT_WALLET_ENDDATE,
+    end: null,
+  },
 } satisfies Record<string, TimeBasedFeatureWindow>;
 
 /** All time-based flags receive the full window; start-only helpers ignore `end`. */
@@ -89,6 +100,7 @@ export const TIME_BASED_FEATURE_FLAGS: Record<
   TICKETS_FROM_COIN_NPC: timePeriodFeatureFlag,
   TICKETS_FROM_FLOWER_NPC: timePeriodFeatureFlag,
   APRIL_FOOLS_EVENT_FLAG: betaTimePeriodFeatureFlag,
+  RONIN_WAYPOINT_DEPRECATION: timePeriodFeatureFlag,
 };
 
 /**
@@ -124,7 +136,6 @@ const FEATURE_FLAGS = {
   // Permanent Feature Flags
   ADMIN_DASHBOARDS: usernameFeatureFlag,
   AIRDROP_PLAYER: adminFeatureFlag,
-  HOARDING_CHECK: betaFeatureFlag,
   STREAMER_HAT: (game) =>
     (game.wardrobe["Streamer Hat"] ?? 0) > 0 || testnetFeatureFlag(),
 
@@ -141,8 +152,6 @@ const FEATURE_FLAGS = {
   MODERATOR: (game) =>
     !!((game.wardrobe.Halo ?? 0) > 0) && !!game.inventory["Beta Pass"]?.gt(0),
 
-  CHAACS_TEMPLE_BETA: betaFeatureFlag,
-
   /**
    * Gates the new home-interior placement system: the /interior route, the
    * /level_one upgrade route, and the `interior.upgrade` event. Beta-pass /
@@ -152,12 +161,18 @@ const FEATURE_FLAGS = {
 
   BOOSTS_DISPLAY: betaFeatureFlag,
 
-  /** Player economies: token dashboard, portal player-economy API, marketplace minigames row. */
-  PLAYER_ECONOMIES: (game) => !!game.settings.economiesEnabled,
-  /** @deprecated Use PLAYER_ECONOMIES */
-  TOKEN_MINIGAMES: (game) => !!game.settings.economiesEnabled,
+  // Saving & re-applying named farm layouts in landscaping mode.
+  SAVED_LAYOUTS: betaFeatureFlag,
 
-  DUAL_LOGIN: usernameFeatureFlag,
+  // Speed-rate (Clash-of-Clans potion) model for time-based boosts — starting
+  // with the Sparrow Shrine on crops. When on, planting stores the new
+  // baseDurationMs + true plantedAt model; when off, boosts stay discount-at-start.
+  SPEED_BOOSTS: testnetFeatureFlag,
+
+  // Importing leftover items from the old home into the new interior.
+  HOME_ITEM_MIGRATION: betaFeatureFlag,
+
+  SWAMP_ASCENSION: testnetFeatureFlag,
 } satisfies Record<string, FeatureFlag>;
 
 export type FeatureName = keyof typeof FEATURE_FLAGS;

@@ -1,7 +1,7 @@
 import React, { useContext, useRef, useState, type JSX } from "react";
 import { v4 as uuidv4 } from "uuid";
 
-import { Reward, CropPlot } from "features/game/types/game";
+import type { Reward, CropPlot } from "features/game/types/game";
 import { CROPS } from "features/game/types/crops";
 import { PIXEL_SCALE } from "features/game/lib/constants";
 import {
@@ -21,11 +21,12 @@ import { ChestReward } from "../common/chest-reward/ChestReward";
 import { Context } from "features/game/GameProvider";
 import { useSelector } from "@xstate/react";
 import {
-  MachineState,
+  type MachineState,
   selectGameState,
   selectVerified,
 } from "features/game/lib/gameMachine";
 import { isSeasonedPlayer } from "features/game/lib/seasonedPlayer";
+import { getCropPlotBoostWindows } from "features/game/lib/boostWindows";
 import { ZoomContext } from "components/ZoomProvider";
 import { CROP_COMPOST } from "features/game/types/composters";
 import { gameAnalytics } from "lib/gameAnalytics";
@@ -33,7 +34,7 @@ import { SUNNYSIDE } from "assets/sunnyside";
 import {
   isCropSeed,
   SEASONAL_SEEDS,
-  SeedName,
+  type SeedName,
 } from "features/game/types/seeds";
 import { ModalContext } from "features/game/components/modal/ModalProvider";
 import { getKeys } from "lib/object";
@@ -126,10 +127,12 @@ export const Plot: React.FC<Props> = ({ id }) => {
   const now = useNow({ live: true });
   const isSeasoned = isSeasonedPlayer({ game: state, verified, now });
 
+  const cropBoostWindows = getCropPlotBoostWindows(state);
+
   // Calculate expected reward for UI preview (captcha gate for non-seasoned players)
   const expectedReward =
     crop?.reward ??
-    (crop && isReadyToHarvest(now, crop, CROPS[crop.name])
+    (crop && isReadyToHarvest(now, crop, CROPS[crop.name], state)
       ? getReward({
           crop: crop.name,
           skills: state.bumpkin?.skills ?? {},
@@ -158,8 +161,6 @@ export const Plot: React.FC<Props> = ({ id }) => {
   const harvestCrop = async (plot: CropPlot) => {
     if (!plot.crop) return;
     const newState = gameService.send("crop.harvested", { index: id });
-
-    if (newState.matches("hoarding")) return;
 
     harvestAudio();
     const cropAmount =
@@ -213,7 +214,7 @@ export const Plot: React.FC<Props> = ({ id }) => {
 
   const onClick = (seed: SeedName = selectedItem as SeedName) => {
     const readyToHarvest =
-      !!crop && isReadyToHarvest(now, crop, CROPS[crop.name]);
+      !!crop && isReadyToHarvest(now, crop, CROPS[crop.name], state);
     const wantsToPlant = !crop && seed && isCropSeed(seed);
 
     // small buffer to prevent accidental double clicks
@@ -358,6 +359,8 @@ export const Plot: React.FC<Props> = ({ id }) => {
           procAnimation={procAnimation}
           touchCount={touchCount}
           showTimers={showTimers}
+          boostWindows={cropBoostWindows}
+          now={now}
         />
       </div>
       {reward && (

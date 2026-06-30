@@ -1,6 +1,7 @@
 import Decimal from "decimal.js-light";
+import { hasRequiredIslandExpansion } from "features/game/lib/hasRequiredIslandExpansion";
 import { trackFarmActivity } from "features/game/types/farmActivity";
-import {
+import type {
   BoostName,
   CriticalHitName,
   AOE,
@@ -13,14 +14,17 @@ import {
   isCollectibleBuilt,
 } from "features/game/lib/collectibleBuilt";
 import {
-  Position,
+  type Position,
   isWithinAOE,
 } from "features/game/expansion/placeable/lib/collisionDetection";
 import { FACTION_ITEMS } from "features/game/lib/factions";
 import { getBudYieldBoosts } from "features/game/lib/getBudYieldBoosts";
 import { isWearableActive } from "features/game/lib/wearables";
 import { COLLECTIBLES_DIMENSIONS } from "features/game/types/craftables";
-import { RESOURCE_DIMENSIONS, RockName } from "features/game/types/resources";
+import {
+  RESOURCE_DIMENSIONS,
+  type RockName,
+} from "features/game/types/resources";
 import cloneDeep from "lodash.clonedeep";
 import { updateBoostUsed } from "features/game/types/updateBoostUsed";
 import {
@@ -324,8 +328,9 @@ export function getStoneDropAmount({
   if (budUsed)
     boostsUsed.push({ name: budUsed, value: `+${yieldBoost.toString()}` });
 
-  if (game.island.type === "volcano") {
+  if (hasRequiredIslandExpansion(game.island.type, "volcano")) {
     amount += 0.1;
+    boostsUsed.push({ name: "Volcano Bonus", value: "+0.1" });
   }
 
   amount *= multiplier;
@@ -333,10 +338,12 @@ export function getStoneDropAmount({
   // Add yield boost for upgraded stones
   if (rock.tier === 2) {
     amount += 0.5;
+    boostsUsed.push({ name: "Tier 2 Bonus", value: "+0.5" });
   }
 
   if (rock.tier === 3) {
     amount += 2.5;
+    boostsUsed.push({ name: "Tier 3 Bonus", value: "+2.5" });
   }
 
   return {

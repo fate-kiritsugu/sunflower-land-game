@@ -1,13 +1,13 @@
 import { SUNNYSIDE } from "assets/sunnyside";
 import { KNOWN_IDS } from "features/game/types";
-import { BumpkinItem, ITEM_IDS } from "features/game/types/bumpkin";
+import { type BumpkinItem, ITEM_IDS } from "features/game/types/bumpkin";
 import {
-  BumpkinRevampSkillName,
+  type BumpkinRevampSkillName,
   BUMPKIN_REVAMP_SKILL_TREE,
-  BumpkinSkillRevamp,
+  type BumpkinSkillRevamp,
 } from "features/game/types/bumpkinSkills";
-import { BoostName, InventoryItemName } from "features/game/types/game";
-import { GameState } from "features/game/types/game";
+import type { BoostName, InventoryItemName } from "features/game/types/game";
+import type { GameState } from "features/game/types/game";
 import { getTradeableDisplay } from "features/marketplace/lib/tradeables";
 import { AnimatedPanel } from "features/world/ui/AnimatedPanel";
 import { useAppTranslation } from "lib/i18n/useAppTranslations";
@@ -16,12 +16,12 @@ import { createPortal } from "react-dom";
 import { Label } from "../Label";
 import {
   CALENDAR_EVENT_ICONS,
-  SeasonalEventName,
+  type SeasonalEventName,
 } from "features/game/types/calendar";
 import { getSkillImage } from "features/bumpkins/components/revamp/SkillPathDetails";
 import { startCase } from "lodash";
-import { BudNFTName } from "features/game/types/marketplace";
-import { TranslationKeys } from "lib/i18n/dictionaries/types";
+import type { BudNFTName } from "features/game/types/marketplace";
+import type { TranslationKeys } from "lib/i18n/dictionaries/types";
 import classNames from "classnames";
 import { getBudImage } from "lib/buds/types";
 
@@ -113,6 +113,7 @@ export const BoostsDisplay: React.FC<{
   onClick: () => void;
   className?: string;
   portalAlign?: "left" | "center" | "right";
+  portalPlacement?: "auto" | "above" | "below";
   /** When provided, renders in a portal to avoid clipping by scroll containers. Positions above trigger when it would clip below. */
   anchorRef?: React.RefObject<HTMLElement | null>;
 }> = ({
@@ -122,6 +123,7 @@ export const BoostsDisplay: React.FC<{
   onClick,
   className,
   portalAlign = "right",
+  portalPlacement = "auto",
   anchorRef,
 }) => {
   const { t } = useAppTranslation();
@@ -165,7 +167,10 @@ export const BoostsDisplay: React.FC<{
       setAnchorVisible(visible);
       if (!visible) return;
       const spaceBelow = window.innerHeight - rect.bottom;
-      const positionAbove = spaceBelow < BOOSTS_PANEL_ESTIMATED_HEIGHT;
+      const positionAbove =
+        portalPlacement === "above" ||
+        (portalPlacement === "auto" &&
+          spaceBelow < BOOSTS_PANEL_ESTIMATED_HEIGHT);
 
       const horizontalStyle =
         portalAlign === "center"
@@ -227,7 +232,7 @@ export const BoostsDisplay: React.FC<{
         el.removeEventListener("scroll", scheduleUpdate),
       );
     };
-  }, [show, anchorRef, portalAlign]);
+  }, [show, anchorRef, portalAlign, portalPlacement]);
 
   const panelContent = (
     <AnimatedPanel

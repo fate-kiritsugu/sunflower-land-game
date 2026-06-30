@@ -1,10 +1,10 @@
 import { CLUTTER } from "../types/clutter";
 import { TOOLS } from "../types/craftables";
-import { InventoryItemName } from "../types/game";
+import type { InventoryItemName } from "../types/game";
 import {
   CHAPTER_RAFFLE_TICKET_NAME,
   CHAPTER_TICKET_NAME,
-  ChapterRaffleTicket,
+  type ChapterRaffleTicket,
 } from "../types/chapters";
 import { SEEDS } from "../types/seeds";
 import {
@@ -86,6 +86,7 @@ export const OFFCHAIN_ITEMS = new Set<InventoryItemName>([
   "Gold Friends Trophy",
   "Silver Friends Trophy",
   "Bronze Friends Trophy",
+  "Design Trophy",
   "Basic Land",
   "Holiday Token 2025",
   "Holiday Ticket 2025",

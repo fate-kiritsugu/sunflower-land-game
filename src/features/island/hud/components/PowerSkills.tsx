@@ -8,13 +8,13 @@ import Decimal from "decimal.js-light";
 import { CloseButtonPanel } from "features/game/components/CloseablePanel";
 import { Context } from "features/game/GameProvider";
 import { PIXEL_SCALE } from "features/game/lib/constants";
-import { MachineState } from "features/game/lib/gameMachine";
+import type { MachineState } from "features/game/lib/gameMachine";
 import {
-  BumpkinRevampSkillName,
-  BumpkinSkillRevamp,
+  type BumpkinRevampSkillName,
+  type BumpkinSkillRevamp,
   getPowerSkills,
 } from "features/game/types/bumpkinSkills";
-import { InventoryItemName } from "features/game/types/game";
+import type { InventoryItemName } from "features/game/types/game";
 import { useAppTranslation } from "lib/i18n/useAppTranslations";
 import React, { useContext, useState } from "react";
 import {
@@ -152,7 +152,7 @@ const PowerSkillsContent: React.FC<{
     createdAt: now,
   });
 
-  const isPowerSkillReady = (skill: BumpkinSkillRevamp) => {
+  const isPowerSkillCooldownReady = (skill: BumpkinSkillRevamp) => {
     if (!skill.power) return false;
 
     const skillName = skill.name as BumpkinRevampSkillName;
@@ -163,13 +163,7 @@ const PowerSkillsContent: React.FC<{
     const nextSkillUse =
       (previousPowerUseAt?.[skillName] ?? 0) + boostedCooldown;
 
-    if (nextSkillUse >= now) return false;
-
-    return !powerSkillDisabledConditions({
-      state,
-      skillTree: skill,
-      createdAt: now,
-    }).disabled;
+    return nextSkillUse < now;
   };
 
   return (
@@ -377,7 +371,7 @@ const PowerSkillsContent: React.FC<{
                       }}
                       tier={requirements.tier}
                       npc={npc}
-                      isReady={isPowerSkillReady(skill)}
+                      isReady={isPowerSkillCooldownReady(skill)}
                       secondaryImage={
                         boosts.debuff
                           ? tradeOffs
@@ -434,7 +428,7 @@ const PowerSkillsContent: React.FC<{
                       }}
                       tier={requirements.tier}
                       npc={npc}
-                      isReady={isPowerSkillReady(skill)}
+                      isReady={isPowerSkillCooldownReady(skill)}
                       secondaryImage={
                         boosts.debuff
                           ? tradeOffs

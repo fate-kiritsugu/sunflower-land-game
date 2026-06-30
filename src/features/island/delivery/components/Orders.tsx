@@ -11,7 +11,7 @@ import chapterPointsIcon from "assets/icons/red_medal_short.webp";
 
 import { DynamicNFT } from "features/bumpkins/components/DynamicNFT";
 import {
-  QuestNPCName,
+  type QuestNPCName,
   TICKET_REWARDS,
   areBumpkinsOnHoliday,
   generateDeliveryTickets,
@@ -19,10 +19,10 @@ import {
 } from "features/game/events/landExpansion/deliver";
 import { PIXEL_SCALE } from "features/game/lib/constants";
 import { getKeys } from "lib/object";
-import { GameState, Order } from "features/game/types/game";
+import type { GameState, Order } from "features/game/types/game";
 import { ITEM_DETAILS } from "features/game/types/images";
 
-import { NPCName, NPC_WEARABLES } from "lib/npcs";
+import { type NPCName, NPC_WEARABLES } from "lib/npcs";
 import {
   getDayOfYear,
   secondsTillReset,
@@ -30,7 +30,7 @@ import {
 } from "lib/utils/time";
 import {
   NPC_DELIVERY_LEVELS,
-  DeliveryNpcName,
+  type DeliveryNpcName,
   acknowledgeOrders,
   generateDeliveryMessage,
   isCoinNPC,
@@ -51,7 +51,12 @@ import { getBumpkinHoliday } from "lib/utils/getSeasonWeek";
 import { useAppTranslation } from "lib/i18n/useAppTranslations";
 import { Loading } from "features/auth/components";
 import { useNavigate } from "react-router";
-import { getBumpkinLevel } from "features/game/lib/level";
+import {
+  getAscensionLevel,
+  meetsLevelRequirement,
+  levelRequirementToTotal,
+  type LevelRequirement,
+} from "features/game/lib/level";
 import { SquareIcon } from "components/ui/SquareIcon";
 import { formatNumber } from "lib/utils/formatNumber";
 import { isMobile } from "mobile-device-detect";
@@ -75,9 +80,9 @@ export const BEACH_BUMPKINS: NPCName[] = [
   "finn",
   "finley",
   "miranda",
-  "old salty",
-  "pharaoh",
 ];
+
+export const DIGGING_BUMPKINS: NPCName[] = ["old salty", "pharaoh"];
 
 export const KINGDOM_BUMPKINS: NPCName[] = ["victoria", "jester", "gambit"];
 
@@ -190,6 +195,7 @@ export const DeliveryOrders: React.FC<Props> = ({
 
   const getLocationName = (npcName: NPCName) => {
     if (RETREAT_BUMPKINS.includes(npcName)) return t("world.retreat");
+    if (DIGGING_BUMPKINS.includes(npcName)) return t("world.digging");
     if (BEACH_BUMPKINS.includes(npcName)) return t("world.beach");
     if (KINGDOM_BUMPKINS.includes(npcName)) return t("world.kingdom");
     return t("world.plaza");
@@ -200,6 +206,7 @@ export const DeliveryOrders: React.FC<Props> = ({
       const customPreposition: Record<string, string> = {
         [t("world.retreat")]: "в",
         [t("world.beach")]: "на",
+        [t("world.digging")]: "на",
         [t("world.kingdom")]: "в",
         [t("world.plaza")]: "на",
       };
@@ -224,7 +231,12 @@ export const DeliveryOrders: React.FC<Props> = ({
 
   const nextHolidayInSecs = (new Date(holiday ?? 0).getTime() - now) / 1000;
 
-  const level = getBumpkinLevel(bumpkin?.experience ?? 0);
+  const ascension = getAscensionLevel({
+    experience: bumpkin.experience ?? 0,
+    ascensionLevel: state.island.ascensionLevel ?? 0,
+  });
+  const isBelowLevel = (requirement: LevelRequirement) =>
+    !meetsLevelRequirement(ascension, requirement);
 
   const coinOrders = orders.filter((order) => order.reward.coins);
   const sflOrders = orders.filter((order) => order.reward.sfl);
@@ -234,20 +246,35 @@ export const DeliveryOrders: React.FC<Props> = ({
 
   const nextCoinUnlock = getKeys(NPC_DELIVERY_LEVELS)
     .filter((name) => isCoinNPC(name))
-    .sort((a, b) => (NPC_DELIVERY_LEVELS[a] > NPC_DELIVERY_LEVELS[b] ? 1 : -1))
-    .find((npc) => level < (NPC_DELIVERY_LEVELS?.[npc] ?? 0));
+    .sort((a, b) =>
+      levelRequirementToTotal(NPC_DELIVERY_LEVELS[a]) >
+      levelRequirementToTotal(NPC_DELIVERY_LEVELS[b])
+        ? 1
+        : -1,
+    )
+    .find((npc) => isBelowLevel(NPC_DELIVERY_LEVELS[npc]));
 
   const nextTicketUnlock = getKeys(NPC_DELIVERY_LEVELS)
     .filter((name) => isTicketNPC(name))
-    .sort((a, b) => (NPC_DELIVERY_LEVELS[a] > NPC_DELIVERY_LEVELS[b] ? 1 : -1))
-    .find((npc) => level < (NPC_DELIVERY_LEVELS?.[npc] ?? 0));
+    .sort((a, b) =>
+      levelRequirementToTotal(NPC_DELIVERY_LEVELS[a]) >
+      levelRequirementToTotal(NPC_DELIVERY_LEVELS[b])
+        ? 1
+        : -1,
+    )
+    .find((npc) => isBelowLevel(NPC_DELIVERY_LEVELS[npc]));
 
   const nextSFLUnlock = getKeys(NPC_DELIVERY_LEVELS)
     .filter((name) => isSFLNPC(name))
-    .sort((a, b) => (NPC_DELIVERY_LEVELS[a] > NPC_DELIVERY_LEVELS[b] ? 1 : -1))
-    .find((npc) => level < (NPC_DELIVERY_LEVELS?.[npc] ?? 0));
+    .sort((a, b) =>
+      levelRequirementToTotal(NPC_DELIVERY_LEVELS[a]) >
+      levelRequirementToTotal(NPC_DELIVERY_LEVELS[b])
+        ? 1
+        : -1,
+    )
+    .find((npc) => isBelowLevel(NPC_DELIVERY_LEVELS[npc]));
 
-  const baseTickets = generateDeliveryTickets({
+  const { amount: baseTickets } = generateDeliveryTickets({
     game: state,
     npc: previewOrder.from,
     now,
@@ -387,7 +414,7 @@ export const DeliveryOrders: React.FC<Props> = ({
             )}
             <NextHolidayLabel holiday={holiday} now={now} />
           </div>
-          {level <= 8 && (
+          {isBelowLevel({ ascension: 0, level: 9 }) && (
             <span className="text-xs mb-2">
               {t("bumpkin.delivery.earnTickets", {
                 ticket: chapterTicket,
@@ -424,7 +451,7 @@ export const DeliveryOrders: React.FC<Props> = ({
               {`FLOWER`}
             </Label>
           </div>
-          {level <= 12 && (
+          {isBelowLevel({ ascension: 0, level: 13 }) && (
             <span className="text-xs mb-2">
               {t("bumpkin.delivery.earnSFL")}
             </span>
@@ -716,6 +743,14 @@ export const DeliveryOrders: React.FC<Props> = ({
                               )
                             ) {
                               navigate("/world/retreat");
+                            } else if (
+                              DIGGING_BUMPKINS.includes(
+                                previewOrder?.from as NPCName,
+                              )
+                            ) {
+                              navigate("/world/beach", {
+                                state: { previousSceneId: "digging" },
+                              });
                             } else if (
                               BEACH_BUMPKINS.includes(
                                 previewOrder?.from as NPCName,

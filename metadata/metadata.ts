@@ -1,10 +1,10 @@
-import { BumpkinItem } from "features/game/types/bumpkin";
-import { InventoryItemName } from "../src/features/game/types/game";
-import { Attribute } from "./models";
+import type { BumpkinItem } from "features/game/types/bumpkin";
+import type { InventoryItemName } from "../src/features/game/types/game";
+import type { Attribute } from "./models";
 import { getKeys } from "lib/object";
 import {
   DECORATION_TEMPLATES,
-  TemplateDecorationName,
+  type TemplateDecorationName,
 } from "features/game/types/decorations";
 
 // `image` is intentionally NOT part of the authored shape. The output URL is
@@ -2146,6 +2146,17 @@ export const OPEN_SEA_COLLECTIBLES: Record<InventoryItemName, Metadata> = {
     name: "Sunstone",
     description:
       "A resource collected by mining sunstone mines.\n\nIt is used in a range of different crafting recipes.",
+    decimals: 18,
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    attributes: [
+      { trait_type: "Purpose", value: "Resource" },
+      { trait_type: "Tradable", value: "No" },
+    ],
+  },
+  "Ascension Shard": {
+    name: "Ascension Shard",
+    description:
+      "A resource collected by mining ascension crystals.\n\nIt is used to upgrade existing skills.",
     decimals: 18,
     external_url: "https://docs.sunflower-land.com/getting-started/about",
     attributes: [
@@ -5128,6 +5139,15 @@ export const OPEN_SEA_COLLECTIBLES: Record<InventoryItemName, Metadata> = {
       { trait_type: "Tradable", value: "No" },
     ],
   },
+  "Ascension Crystal": {
+    description: "Upgrade skills",
+    decimals: 0,
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    attributes: [
+      { trait_type: "Purpose", value: "Resource Node" },
+      { trait_type: "Tradable", value: "No" },
+    ],
+  },
   Boulder: {
     description: "???",
     decimals: 0,
@@ -5361,6 +5381,17 @@ export const OPEN_SEA_COLLECTIBLES: Record<InventoryItemName, Metadata> = {
         trait_type: "Extra Seasonal Tickets from Deliveries and Chores",
         value: 2,
       },
+      { trait_type: "Tradable", value: "No" },
+    ],
+  },
+  "Creator Banner": {
+    name: "Creator Banner",
+    description:
+      "A banner to celebrate the creators who grow the Sunflower Land community.",
+    decimals: 0,
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    attributes: [
+      { trait_type: "Purpose", value: "Banner" },
       { trait_type: "Tradable", value: "No" },
     ],
   },
@@ -6810,7 +6841,7 @@ export const OPEN_SEA_COLLECTIBLES: Record<InventoryItemName, Metadata> = {
     external_url: "https://docs.sunflower-land.com/getting-started/about",
     attributes: [
       { trait_type: "Purpose", value: "Fish" },
-      { trait_type: "Tradable", value: "No" },
+      { trait_type: "Tradable", value: "Yes" },
     ],
   },
   Nautilus: {
@@ -6820,7 +6851,7 @@ export const OPEN_SEA_COLLECTIBLES: Record<InventoryItemName, Metadata> = {
     external_url: "https://docs.sunflower-land.com/getting-started/about",
     attributes: [
       { trait_type: "Purpose", value: "Fish" },
-      { trait_type: "Tradable", value: "No" },
+      { trait_type: "Tradable", value: "Yes" },
     ],
   },
   Dollocaris: {
@@ -12895,6 +12926,60 @@ export const OPEN_SEA_COLLECTIBLES: Record<InventoryItemName, Metadata> = {
     ],
     external_url: "https://docs.sunflower-land.com/getting-started/about",
     name: "Volcano Biome",
+  },
+  "Swamp Biome": {
+    description: "A swamp biome that provides a swamp income and a swamp life.",
+    decimals: 0,
+    attributes: [
+      { trait_type: "Purpose", value: "Decoration" },
+      { trait_type: "Tradable", value: "Yes" },
+    ],
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    name: "Swamp Biome",
+  },
+  "Spooky Biome": {
+    description:
+      "A spooky biome that provides a spooky income and a spooky life.",
+    decimals: 0,
+    attributes: [
+      { trait_type: "Purpose", value: "Decoration" },
+      { trait_type: "Tradable", value: "Yes" },
+    ],
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    name: "Spooky Biome",
+  },
+  "Crystal Biome": {
+    description:
+      "A crystal biome that provides a crystal income and a crystal life.",
+    decimals: 0,
+    attributes: [
+      { trait_type: "Purpose", value: "Decoration" },
+      { trait_type: "Tradable", value: "Yes" },
+    ],
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    name: "Crystal Biome",
+  },
+  "Galaxy Biome": {
+    description:
+      "A galaxy biome that provides a galaxy income and a galaxy life.",
+    decimals: 0,
+    attributes: [
+      { trait_type: "Purpose", value: "Decoration" },
+      { trait_type: "Tradable", value: "Yes" },
+    ],
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    name: "Galaxy Biome",
+  },
+  "Marble Age Biome": {
+    description:
+      "A marble age biome that provides a marble age income and a marble age life.",
+    decimals: 0,
+    attributes: [
+      { trait_type: "Purpose", value: "Decoration" },
+      { trait_type: "Tradable", value: "Yes" },
+    ],
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    name: "Marble Age Biome",
   },
   "Better Together Banner": {
     description: "",
@@ -21153,5 +21238,15 @@ export const OPEN_SEA_WEARABLES: Record<BumpkinItem, Metadata> = {
     ],
     external_url: "https://docs.sunflower-land.com/getting-started/about",
     name: "Shrimp Onesie",
+  },
+  "Brasil Jersey": {
+    description: "Aqui é o Brasil. O melhor time no mundo!",
+    decimals: 0,
+    attributes: [
+      { trait_type: "Part", value: "Shirt" },
+      { trait_type: "Tradable", value: "No" },
+    ],
+    external_url: "https://docs.sunflower-land.com/getting-started/about",
+    name: "Brasil Jersey",
   },
 };

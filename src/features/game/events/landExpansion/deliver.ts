@@ -2,7 +2,7 @@ import Decimal from "decimal.js-light";
 import { trackFarmActivity } from "features/game/types/farmActivity";
 import { CONSUMABLES, COOKABLE_CAKES } from "features/game/types/consumables";
 import { getKeys } from "lib/object";
-import {
+import type {
   BoostName,
   GameState,
   Inventory,
@@ -15,13 +15,13 @@ import {
   getCurrentChapter,
   getChapterTicket,
 } from "features/game/types/chapters";
-import { NPCName } from "lib/npcs";
+import type { NPCName } from "lib/npcs";
 import { getBumpkinHoliday } from "lib/utils/getSeasonWeek";
 import { isWearableActive } from "features/game/lib/wearables";
 import { FACTION_OUTFITS } from "features/game/lib/factions";
-import { PATCH_FRUIT, PatchFruitName } from "features/game/types/fruits";
+import { PATCH_FRUIT, type PatchFruitName } from "features/game/types/fruits";
 import { produce } from "immer";
-import { BumpkinItem } from "features/game/types/bumpkin";
+import type { BumpkinItem } from "features/game/types/bumpkin";
 import { FISH } from "features/game/types/fishing";
 import { hasVipAccess } from "features/game/lib/vipAccess";
 import { getActiveCalendarEvent } from "features/game/types/calendar";
@@ -64,14 +64,16 @@ export function generateDeliveryTickets({
   game: GameState;
   npc: NPCName;
   now: number;
-}) {
+}): { amount: number; boostsUsed: { name: BoostName; value: string }[] } {
   let amount = 0;
+  const boostsUsed: { name: BoostName; value: string }[] = [];
 
   if (isTicketNPC(npc)) {
     amount = TICKET_REWARDS[npc];
 
     if (hasVipAccess({ game, now })) {
       amount += 2;
+      boostsUsed.push({ name: "VIP Access", value: "+2" });
     }
 
     const chapter = getCurrentChapter(now);
@@ -81,17 +83,19 @@ export function generateDeliveryTickets({
       if (isCollectible(item)) {
         if (isCollectibleBuilt({ game, name: item })) {
           amount += 1;
+          boostsUsed.push({ name: item, value: "+1" });
         }
       } else {
         if (isWearableActive({ game, name: item })) {
           amount += 1;
+          boostsUsed.push({ name: item, value: "+1" });
         }
       }
     });
   }
 
   if (!amount) {
-    return 0;
+    return { amount: 0, boostsUsed };
   }
 
   const completedAt = game.npcs?.[npc]?.deliveryCompletedAt;
@@ -108,9 +112,10 @@ export function generateDeliveryTickets({
     !hasClaimedBonus
   ) {
     amount *= 2;
+    boostsUsed.push({ name: "Double Delivery", value: "x2" });
   }
 
-  return amount;
+  return { amount, boostsUsed };
 }
 
 export type DeliverOrderAction = {
@@ -330,6 +335,7 @@ export function getOrderSellPrice<T>(
     !hasClaimedBonus
   ) {
     mul *= 2;
+    boostsUsed.push({ name: "Double Delivery", value: "x2" });
   }
 
   if (order.reward.sfl) {
@@ -402,7 +408,7 @@ export function deliverOrder({
 
     const isQuestTicketOrder = !!TICKET_REWARDS[order.from as QuestNPCName];
 
-    const tickets = generateDeliveryTickets({
+    const { amount: tickets } = generateDeliveryTickets({
       game,
       npc: order.from,
       now: createdAt,

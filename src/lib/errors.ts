@@ -73,6 +73,14 @@ export const ERRORS = {
   LINKED_WALLET_HAS_FARM: "LINKED_WALLET_HAS_FARM",
 
   MISSING_PROVIDER: "MISSING_PROVIDER",
+
+  // Player has disabled Google as a login method on this farm
+  GOOGLE_LOGIN_DISABLED: "GOOGLE_LOGIN_DISABLED",
+
+  // Twitter showcase (Community feed) errors
+  TWITTER_NOT_CONNECTED: "TWITTER_NOT_CONNECTED",
+  TWITTER_ALREADY_SHOWCASED: "TWITTER_ALREADY_SHOWCASED",
+  TWITTER_INVALID_URL: "TWITTER_INVALID_URL",
 };
 
 export type ErrorCode = keyof typeof ERRORS;

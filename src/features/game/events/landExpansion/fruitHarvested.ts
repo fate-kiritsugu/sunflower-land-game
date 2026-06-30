@@ -5,33 +5,31 @@ import {
 } from "features/game/lib/collectibleBuilt";
 import {
   getBudYieldBoosts,
-  Resource,
+  type Resource,
 } from "features/game/lib/getBudYieldBoosts";
 import {
   trackFarmActivity,
-  FarmActivityName,
+  type FarmActivityName,
 } from "features/game/types/farmActivity";
 import {
-  GreenHouseFruitName,
+  type GreenHouseFruitName,
   PATCH_FRUIT,
   PATCH_FRUIT_SEEDS,
-  PatchFruitName,
+  type PatchFruitName,
 } from "features/game/types/fruits";
-import {
+import type {
   BoostName,
   CriticalHitName,
   GameState,
 } from "features/game/types/game";
-import { FruitCompostName } from "features/game/types/composters";
+import type { FruitCompostName } from "features/game/types/composters";
 import { getPlantedAt } from "./fruitPlanted";
 import { isWearableActive } from "features/game/lib/wearables";
 import { isGreenhouseFruit } from "./plantGreenhouse";
 import { FACTION_ITEMS } from "features/game/lib/factions";
 import { produce } from "immer";
-import {
-  getActiveCalendarEvent,
-  getActiveGuardian,
-} from "features/game/types/calendar";
+import { getActiveCalendarEvent } from "features/game/types/calendar";
+import { getActiveGuardian } from "features/game/lib/getActiveGuardian";
 import { getFruitfulBlendBuff } from "./fertiliseFruitPatch";
 import { updateBoostUsed } from "features/game/types/updateBoostUsed";
 import { prngChance } from "lib/prng";

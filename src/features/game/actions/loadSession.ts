@@ -3,11 +3,11 @@ import { CONFIG } from "lib/config";
 import { ERRORS } from "lib/errors";
 import { sanitizeHTTPResponse } from "lib/network";
 import { makeGame } from "../lib/transforms";
-import { GameState, Purchase } from "../types/game";
-import { Announcements } from "../types/announcements";
+import type { GameState, Purchase } from "../types/game";
+import type { Announcements } from "../types/announcements";
 import { getSignupMethod } from "features/auth/actions/createAccount";
-import { Moderation } from "../lib/gameMachine";
-import { LanguageCode } from "lib/i18n/dictionaries/language";
+import type { Moderation } from "../lib/gameMachine";
+import type { LanguageCode } from "lib/i18n/dictionaries/language";
 
 type Request = {
   token: string;
@@ -52,6 +52,8 @@ export type SocialDetails = {
   provider: string;
   sub: string;
   email: string;
+  /** When true, this social identity is linked but cannot be used to log in. */
+  disabled?: boolean;
 };
 
 const API_URL = CONFIG.API_URL;
@@ -112,6 +114,13 @@ export async function loadSession(
   }
 
   if (response.status === 401) {
+    // The BE tags disabled-login as a 401 with a structured body so we
+    // can route the user to the dedicated GoogleLoginDisabled screen
+    // instead of the generic SessionExpired one.
+    const data = await response.json().catch(() => null);
+    if (data?.errorCode === ERRORS.GOOGLE_LOGIN_DISABLED) {
+      throw new Error(ERRORS.GOOGLE_LOGIN_DISABLED);
+    }
     throw new Error(ERRORS.SESSION_EXPIRED);
   }
 

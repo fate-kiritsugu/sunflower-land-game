@@ -1,27 +1,31 @@
 import {
-  CollectibleName,
+  type CollectibleName,
   COLLECTIBLES_DIMENSIONS,
 } from "../../types/craftables";
-import { GameState, PlacedItem } from "features/game/types/game";
+import type { GameState, PlacedItem } from "features/game/types/game";
 import { trackFarmActivity } from "features/game/types/farmActivity";
-import { PlaceableLocation } from "features/game/types/collectibles";
+import type { PlaceableLocation } from "features/game/types/collectibles";
 import { produce } from "immer";
 import { getCountAndType } from "features/island/hud/components/inventory/utils/inventory";
-import { MonumentName, REQUIRED_CHEERS } from "features/game/types/monuments";
+import {
+  type MonumentName,
+  REQUIRED_CHEERS,
+} from "features/game/types/monuments";
 import {
   getPlacedCommonPetTypesInPetHouse,
   isPet,
-  PetName,
+  type PetName,
   PET_HOUSE_CAPACITY,
   PET_TYPES,
 } from "features/game/types/pets";
 import {
   EXPIRY_COOLDOWNS,
-  TemporaryCollectibleName,
+  type TemporaryCollectibleName,
 } from "features/game/lib/collectibleBuilt";
-import { Coordinates } from "features/game/expansion/components/MapPlacement";
+import type { Coordinates } from "features/game/expansion/components/MapPlacement";
 import { COMPETITION_POINTS } from "features/game/types/competitions";
 import { populateSaltFarm } from "features/game/types/salt";
+import { refreshBasicScarecrowTimeAOE } from "features/game/lib/aoe";
 
 export type PlaceCollectibleAction = {
   type: "collectible.placed";
@@ -295,6 +299,12 @@ export function placeCollectible({
       gameAfter: stateCopy,
       now: createdAt,
     });
+
+    // A boost collectible (shrine/totem/hourglass) placed mid-grow shortens
+    // windowed crops' ready time — keep each cell's Basic Scarecrow time-AOE in
+    // sync so a replant in the gap isn't wrongly denied the boost. Idempotent
+    // for non-boost placements (windows unchanged).
+    refreshBasicScarecrowTimeAOE(stateCopy);
 
     return stateCopy;
   });

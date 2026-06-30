@@ -1,8 +1,8 @@
-import Decimal from "decimal.js-light";
+import type Decimal from "decimal.js-light";
 import { SUNNYSIDE } from "assets/sunnyside";
 import powerup from "assets/icons/level_up.png";
 import { ITEM_DETAILS } from "./images";
-import { BuffLabel } from ".";
+import type { BuffLabel } from ".";
 
 export type LegacyBadgeName =
   | "Green Thumb"
@@ -90,7 +90,7 @@ export const LEGACY_BADGE_TREE: Record<
     buff: [
       {
         labelType: "info",
-        shortDescription: "-10% Crop growth time",
+        shortDescription: "x0.9 Crop growth time",
         boostTypeIcon: SUNNYSIDE.icons.stopwatch,
       },
       {
@@ -112,7 +112,7 @@ export const LEGACY_BADGE_TREE: Record<
     buff: [
       {
         labelType: "success",
-        shortDescription: "-10% Animal sleep time",
+        shortDescription: "x0.9 Animal sleep time",
         boostTypeIcon: powerup,
       },
       {
@@ -187,12 +187,12 @@ export const LEGACY_BADGE_TREE: Record<
     buff: [
       {
         labelType: "success",
-        shortDescription: "-10% Seeds cost",
+        shortDescription: "x0.9 Seeds cost",
         boostTypeIcon: powerup,
       },
       {
         labelType: "success",
-        shortDescription: "-10% Tools cost",
+        shortDescription: "x0.9 Tools cost",
         boostTypeIcon: powerup,
       },
     ],
@@ -229,7 +229,7 @@ export const LEGACY_BADGE_TREE: Record<
     buff: [
       {
         labelType: "success",
-        shortDescription: "-50% FLOWER withdrawal fee",
+        shortDescription: "x0.5 FLOWER withdrawal fee",
         boostTypeIcon: powerup,
       },
     ],

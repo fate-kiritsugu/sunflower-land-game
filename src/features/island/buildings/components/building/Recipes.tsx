@@ -1,4 +1,9 @@
-import React, { Dispatch, SetStateAction, useContext, useState } from "react";
+import React, {
+  type Dispatch,
+  type SetStateAction,
+  useContext,
+  useState,
+} from "react";
 import { useSelector } from "@xstate/react";
 
 import { Box } from "components/ui/Box";
@@ -8,8 +13,8 @@ import { Label } from "components/ui/Label";
 import { ITEM_DETAILS } from "features/game/types/images";
 import {
   COOKABLES,
-  Cookable,
-  CookableName,
+  type Cookable,
+  type CookableName,
 } from "features/game/types/consumables";
 
 import { InProgressInfo } from "./InProgressInfo";
@@ -22,12 +27,15 @@ import {
   getReadyAt,
   MAX_COOKING_SLOTS,
 } from "features/game/events/landExpansion/cook";
-import { CookingBuildingName } from "features/game/types/buildings";
+import type { CookingBuildingName } from "features/game/types/buildings";
 import { BuildingOilTank } from "./BuildingOilTank";
 import pumpkinSoup from "assets/food/pumpkin_soup.png";
 import powerup from "assets/icons/level_up.png";
 import { gameAnalytics } from "lib/gameAnalytics";
-import { BuildingProduct, InventoryItemName } from "features/game/types/game";
+import type {
+  BuildingProduct,
+  InventoryItemName,
+} from "features/game/types/game";
 import { useVipAccess } from "lib/utils/hooks/useVipAccess";
 import { Queue } from "./Queue";
 import vipIcon from "assets/icons/vip.webp";
@@ -35,6 +43,7 @@ import { ModalContext } from "features/game/components/modal/ModalProvider";
 import { Panel } from "components/ui/Panel";
 import { ModalOverlay } from "components/ui/ModalOverlay";
 import { useNow } from "lib/utils/hooks/useNow";
+import { hasRequiredIslandExpansion } from "features/game/lib/hasRequiredIslandExpansion";
 
 interface Props {
   selected: Cookable;
@@ -165,7 +174,8 @@ export const Recipes: React.FC<Props> = ({
   );
   const hasDoubleNom = !!bumpkin.skills["Double Nom"];
   const isVIP = useVipAccess({ game: state });
-  const isQueueFull = [...readyRecipes, ...queue].length >= availableSlots;
+  const isQueueFull =
+    [...readyRecipes, ...queue].length + (cooking ? 1 : 0) >= availableSlots;
 
   return (
     <>
@@ -254,12 +264,13 @@ export const Recipes: React.FC<Props> = ({
               />
             )}
 
-            {buildingId && (
-              <BuildingOilTank
-                buildingName={buildingName}
-                buildingId={buildingId}
-              />
-            )}
+            {buildingId &&
+              hasRequiredIslandExpansion(state.island.type, "desert") && (
+                <BuildingOilTank
+                  buildingName={buildingName}
+                  buildingId={buildingId}
+                />
+              )}
 
             <div className="w-full">
               <Label

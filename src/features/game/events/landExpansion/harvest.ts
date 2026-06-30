@@ -1,4 +1,4 @@
-import {
+import type {
   AOE,
   BoostName,
   CriticalHitName,
@@ -9,37 +9,39 @@ import {
   TemperateSeasonName,
 } from "../../types/game";
 import {
-  Crop,
-  CropName,
+  type Crop,
+  type CropName,
   CROPS,
-  GreenHouseCropName,
+  type GreenHouseCropName,
   isAdvancedCrop,
   isBasicCrop,
   isMediumCrop,
   isOvernightCrop,
 } from "../../types/crops";
-import { SEASONAL_SEEDS, SeedName } from "features/game/types/seeds";
+import { SEASONAL_SEEDS, type SeedName } from "features/game/types/seeds";
 import Decimal from "decimal.js-light";
-import { CropPlot } from "features/game/types/game";
+import type { CropPlot } from "features/game/types/game";
 import { produce } from "immer";
 import {
-  Position,
+  type Position,
   isWithinAOE,
 } from "features/game/expansion/placeable/lib/collisionDetection";
 import {
   isCollectibleBuilt,
   isTemporaryCollectibleActive,
 } from "features/game/lib/collectibleBuilt";
+import {
+  computeReadyAt,
+  getCropPlotBoostWindows,
+} from "features/game/lib/boostWindows";
 import { FACTION_ITEMS } from "features/game/lib/factions";
 import {
   getBudYieldBoosts,
   isPlotCrop,
 } from "features/game/lib/getBudYieldBoosts";
 import { isWearableActive } from "features/game/lib/wearables";
-import {
-  getActiveCalendarEvent,
-  getActiveGuardian,
-} from "features/game/types/calendar";
+import { getActiveCalendarEvent } from "features/game/types/calendar";
+import { getActiveGuardian } from "features/game/lib/getActiveGuardian";
 import { COLLECTIBLES_DIMENSIONS } from "features/game/types/craftables";
 import { RESOURCE_DIMENSIONS } from "features/game/types/resources";
 import { setPrecision } from "lib/utils/formatNumber";
@@ -54,7 +56,7 @@ import {
 import { getAffectedWeather } from "./plant";
 import {
   trackFarmActivity,
-  FarmActivityName,
+  type FarmActivityName,
 } from "features/game/types/farmActivity";
 import { isBuffActive } from "features/game/types/buffs";
 import { prngChance } from "lib/prng";
@@ -104,21 +106,61 @@ export const isWinterCrop = (
   return seasonalSeeds.winter.includes(`${cropName} Seed` as SeedName);
 };
 
-export const isReadyToHarvest = (
-  createdAt: number,
+/**
+ * When a planted crop is ready, across both boost models. New crops (with
+ * `baseDurationMs`) derive their ready time live from the Sparrow Shrine speed
+ * windows; legacy crops use their back-dated `plantedAt` + base grow time.
+ */
+export const getCropReadyAt = (
   plantedCrop: PlantedCrop,
   cropDetails: Crop,
-) => {
-  return createdAt - plantedCrop.plantedAt >= cropDetails.harvestSeconds * 1000;
+  game: GameState,
+): number => {
+  if (plantedCrop.baseDurationMs !== undefined) {
+    return computeReadyAt({
+      startedAt: plantedCrop.plantedAt,
+      baseDurationMs: plantedCrop.baseDurationMs,
+      windows: getCropPlotBoostWindows(game),
+    });
+  }
+
+  return plantedCrop.plantedAt + cropDetails.harvestSeconds * 1000;
 };
 
-export function isCropGrowing(plot: CropPlot) {
+export const isReadyToHarvest = (
+  now: number,
+  plantedCrop: PlantedCrop,
+  cropDetails: Crop,
+  game: GameState,
+) => {
+  return now >= getCropReadyAt(plantedCrop, cropDetails, game);
+};
+
+export function isCropGrowing(plot: CropPlot, game: GameState) {
   const crop = plot.crop;
   if (!crop) return false;
 
   const cropDetails = CROPS[crop.name];
-  return !isReadyToHarvest(Date.now(), crop, cropDetails);
+  return !isReadyToHarvest(Date.now(), crop, cropDetails, game);
 }
+
+/**
+ * The crop's real grow duration (ms), used to gate AOE yield-boost
+ * re-availability. New crops derive it from the live speed windows so an active
+ * Sparrow Shrine shortens it to match the actual time-to-harvest (matching how
+ * legacy crops folded the shrine into `boostedTime`); legacy crops keep their
+ * back-dated boosted time.
+ */
+const getCropGrowDurationMs = (
+  cropName: CropName | GreenHouseCropName,
+  plantedCrop: PlantedCrop | undefined,
+  game: GameState,
+): number => {
+  const cropDetails = CROPS[cropName as CropName];
+  return plantedCrop?.baseDurationMs !== undefined
+    ? getCropReadyAt(plantedCrop, cropDetails, game) - plantedCrop.plantedAt
+    : cropDetails.harvestSeconds * 1000 - (plantedCrop?.boostedTime ?? 0);
+};
 
 type CropYieldAmountArgs = {
   crop: CropName | GreenHouseCropName;
@@ -499,7 +541,7 @@ export function getCropYieldAmount({
         updatedAoe,
         "Scary Mike",
         { dx, dy },
-        CROPS[crop].harvestSeconds * 1000 - (plot?.crop?.boostedTime ?? 0),
+        getCropGrowDurationMs(crop, plot?.crop, game),
         createdAt,
       );
 
@@ -548,7 +590,7 @@ export function getCropYieldAmount({
         updatedAoe,
         "Sir Goldensnout",
         { dx, dy },
-        CROPS[crop].harvestSeconds * 1000 - (plot?.crop?.boostedTime ?? 0),
+        getCropGrowDurationMs(crop, plot?.crop, game),
         createdAt,
       );
 
@@ -597,7 +639,7 @@ export function getCropYieldAmount({
         updatedAoe,
         "Laurie the Chuckle Crow",
         { dx, dy },
-        CROPS[crop].harvestSeconds * 1000 - (plot.crop?.boostedTime ?? 0),
+        getCropGrowDurationMs(crop, plot.crop, game),
         createdAt,
       );
 
@@ -648,7 +690,7 @@ export function getCropYieldAmount({
         updatedAoe,
         "Queen Cornelia",
         { dx, dy },
-        CROPS[crop].harvestSeconds * 1000 - (plot?.crop?.boostedTime ?? 0),
+        getCropGrowDurationMs(crop, plot?.crop, game),
         createdAt,
       );
 
@@ -706,7 +748,7 @@ export function getCropYieldAmount({
         updatedAoe,
         "Gnome",
         { dx, dy },
-        CROPS[crop].harvestSeconds * 1000 - (plot?.crop?.boostedTime ?? 0),
+        getCropGrowDurationMs(crop, plot?.crop, game),
         createdAt,
       );
       if (canUseAoe) {
@@ -752,15 +794,20 @@ export function getCropYieldAmount({
   }
 
   if (plot?.beeSwarm) {
-    let beeSwarmBonus = 0.2;
-    boostsUsed.push({ name: "Bee Swarm Bonus", value: "+0.2" });
+    const count = plot.beeSwarm.count;
+    let perSwarm = 0.2;
+    boostsUsed.push({
+      name: "Bee Swarm Bonus",
+      value: `+${(0.2 * count).toFixed(1)}`,
+    });
     if (skills["Pollen Power Up"]) {
-      beeSwarmBonus += 0.1;
-      boostsUsed.push({ name: "Pollen Power Up", value: "+0.1" });
+      perSwarm += 0.1;
+      boostsUsed.push({
+        name: "Pollen Power Up",
+        value: `+${(0.1 * count).toFixed(1)}`,
+      });
     }
-    // Multiply by the amount of stacked beeswarms
-    beeSwarmBonus *= plot.beeSwarm.count;
-    amount += beeSwarmBonus;
+    amount += perSwarm * count;
   }
 
   if (crop === "Soybean" && isCollectibleBuilt({ name: "Soybliss", game })) {
@@ -951,7 +998,7 @@ export function harvestCropFromPlot({
     throw new Error("Nothing was planted");
   }
 
-  const { name: cropName, plantedAt } = plot.crop;
+  const { name: cropName } = plot.crop;
 
   const counter = game.farmActivity[`${cropName} Harvested`] ?? 0;
 
@@ -969,9 +1016,7 @@ export function harvestCropFromPlot({
         prngArgs: { farmId, counter },
       });
 
-  const { harvestSeconds } = CROPS[cropName];
-
-  if (createdAt - plantedAt < harvestSeconds * 1000) {
+  if (!isReadyToHarvest(createdAt, plot.crop, CROPS[cropName], game)) {
     throw new Error("Not ready");
   }
 

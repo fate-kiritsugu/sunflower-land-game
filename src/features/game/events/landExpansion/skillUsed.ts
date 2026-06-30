@@ -1,10 +1,10 @@
 import {
-  BumpkinRevampSkillName,
+  type BumpkinRevampSkillName,
   BUMPKIN_REVAMP_SKILL_TREE,
-  BumpkinSkillRevamp,
+  type BumpkinSkillRevamp,
 } from "features/game/types/bumpkinSkills";
 import { getKeys } from "lib/object";
-import {
+import type {
   GameState,
   CropPlot,
   Tree,
@@ -24,7 +24,7 @@ import { canChop } from "./chop";
 import { canDrillOilReserve } from "./drillOilReserve";
 import { isReadyToHarvest } from "./harvest";
 import { getCurrentCookingItem, recalculateQueue } from "./cancelQueuedRecipe";
-import { AOEItemName } from "features/game/expansion/placeable/lib/collisionDetection";
+import type { AOEItemName } from "features/game/expansion/placeable/lib/collisionDetection";
 import { FLOWER_SEEDS, FLOWERS } from "features/game/types/flowers";
 import { updateBeehives } from "features/game/lib/updateBeehives";
 import { isWearableActive } from "features/game/lib/wearables";
@@ -352,7 +352,12 @@ export function powerSkillDisabledConditions({
       }
       const plotsStatus = Object.values(crops).map((plot) => {
         if (!plot.crop) return "empty";
-        return isReadyToHarvest(Date.now(), plot.crop, CROPS[plot.crop.name])
+        return isReadyToHarvest(
+          createdAt,
+          plot.crop,
+          CROPS[plot.crop.name],
+          state,
+        )
           ? "ready"
           : "growing";
       });
@@ -366,7 +371,9 @@ export function powerSkillDisabledConditions({
     }
 
     case "Tree Blitz": {
-      if (Object.values(trees).every((tree) => canChop(tree))) {
+      if (
+        Object.values(trees).every((tree) => canChop(tree, state, createdAt))
+      ) {
         return {
           disabled: true,
           reason: translate("powerSkills.reason.noTreesRecovering"),

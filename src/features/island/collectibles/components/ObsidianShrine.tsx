@@ -2,7 +2,7 @@ import React, { useContext, useMemo, useState } from "react";
 import classNames from "classnames";
 
 import { PIXEL_SCALE } from "features/game/lib/constants";
-import { CollectibleProps } from "../Collectible";
+import type { CollectibleProps } from "../Collectible";
 import { SUNNYSIDE } from "assets/sunnyside";
 import { ProgressBar } from "components/ui/ProgressBar";
 import { Context } from "features/game/GameProvider";
@@ -14,13 +14,13 @@ import { Modal } from "components/ui/Modal";
 import { Button } from "components/ui/Button";
 import { InnerPanel, OuterPanel } from "components/ui/Panel";
 import { useSelector } from "@xstate/react";
-import { SeedName } from "features/game/types/seeds";
-import { CropSeedName } from "features/game/types/crops";
+import type { SeedName } from "features/game/types/seeds";
+import type { CropSeedName } from "features/game/types/crops";
 import { SEASONAL_SEEDS, SEEDS } from "features/game/types/seeds";
-import { CropName } from "features/game/types/crops";
+import type { CropName } from "features/game/types/crops";
 import { Box } from "components/ui/Box";
 import { Decimal } from "decimal.js-light";
-import {
+import type {
   CropPlot,
   GameState,
   InventoryItemName,
@@ -34,11 +34,11 @@ import { getReward } from "features/game/events/landExpansion/harvest";
 import { getPlotsToFertilise } from "features/game/events/landExpansion/bulkFertilisePlot";
 import {
   CROP_COMPOST,
-  CropCompostName,
+  type CropCompostName,
   FRUIT_COMPOST,
-  FruitCompostName,
+  type FruitCompostName,
   GREENHOUSE_COMPOST,
-  GreenhouseCompostName,
+  type GreenhouseCompostName,
 } from "features/game/types/composters";
 import { getReadyAt as getGreenhouseReadyAt } from "features/game/events/landExpansion/harvestGreenHouse";
 import { useCountdown } from "lib/utils/hooks/useCountdown";
@@ -49,7 +49,7 @@ import { PET_SHRINE_DIMENSIONS_STYLES } from "./PetShrine";
 import { selectGameState, selectVerified } from "features/game/lib/gameMachine";
 import { isSeasonedPlayer } from "features/game/lib/seasonedPlayer";
 import { ChestReward } from "features/island/common/chest-reward/ChestReward";
-import { FarmActivityName } from "features/game/types/farmActivity";
+import type { FarmActivityName } from "features/game/types/farmActivity";
 import { COLLECTIBLE_BUFF_LABELS } from "features/game/types/collectibleItemBuffs";
 import { isWearableActive } from "features/game/lib/wearables";
 
@@ -620,10 +620,7 @@ const FertiliseSection: React.FC<{
 
   const buffs =
     effectiveFertiliser &&
-    COLLECTIBLE_BUFF_LABELS[effectiveFertiliser]?.({
-      skills: state.bumpkin?.skills ?? {},
-      collectibles: state.collectibles,
-    });
+    COLLECTIBLE_BUFF_LABELS[effectiveFertiliser]?.(state);
 
   const buttonLabel = !effectiveFertiliser
     ? t("obsidianShrine.selectFertiliser")
@@ -672,9 +669,9 @@ const FertiliseSection: React.FC<{
               >
                 {effectiveFertiliser}
               </Label>
-              {buffs?.map((buff) => (
+              {buffs?.map((buff, index) => (
                 <Label
-                  key={`${buff.labelType}-${buff.shortDescription}`}
+                  key={`${effectiveFertiliser}-${index}`}
                   type={buff.labelType}
                   icon={buff.boostTypeIcon}
                   secondaryIcon={buff.boostedItemIcon}

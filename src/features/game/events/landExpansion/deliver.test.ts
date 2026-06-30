@@ -14,12 +14,15 @@ import {
   getBumpkinHoliday,
   getCurrentChapterHolidayPeriod,
 } from "lib/utils/getSeasonWeek";
-import { GameState } from "features/game/types/game";
+import type { GameState } from "features/game/types/game";
 import { getChapterTaskPoints } from "features/game/types/tracks";
 import { CONFIG } from "lib/config";
+import type * as FlagsModule from "lib/flags";
+import type * as DeliverModule from "./deliver";
+import type { QuestNPCName } from "./deliver";
 
 jest.mock("lib/flags", () => {
-  const actual = jest.requireActual<typeof import("lib/flags")>("lib/flags");
+  const actual = jest.requireActual<typeof FlagsModule>("lib/flags");
   return {
     ...actual,
     hasTimeBasedFeatureAccess: jest.fn(actual.hasTimeBasedFeatureAccess),
@@ -29,7 +32,7 @@ jest.mock("lib/flags", () => {
 // esbuild-runner/jest does not hoist `jest.mock` above imports. Load the
 // flags module and the SUT via require *after* the mock is registered so
 // the SUT binds the jest.fn wrapper rather than the real function.
-const flags = require("lib/flags") as typeof import("lib/flags") & {
+const flags = require("lib/flags") as typeof FlagsModule & {
   hasTimeBasedFeatureAccess: jest.Mock;
 };
 const {
@@ -37,8 +40,7 @@ const {
   TICKET_REWARDS,
   deliverOrder,
   generateDeliveryTickets,
-} = require("./deliver") as typeof import("./deliver");
-type QuestNPCName = import("./deliver").QuestNPCName;
+} = require("./deliver") as typeof DeliverModule;
 
 const FIRST_DAY_OF_SEASON = new Date("2024-11-01T16:00:00Z").getTime();
 const MID_SEASON = new Date("2023-08-15T15:00:00Z").getTime();
@@ -69,7 +71,7 @@ describe("deliver", () => {
   afterEach(() => {
     CONFIG.NETWORK = previousNetwork;
     flags.hasTimeBasedFeatureAccess.mockImplementation(
-      jest.requireActual<typeof import("lib/flags")>("lib/flags")
+      jest.requireActual<typeof FlagsModule>("lib/flags")
         .hasTimeBasedFeatureAccess,
     );
   });
@@ -1943,8 +1945,86 @@ describe("deliver", () => {
         game,
         npc: "betty",
         now,
-      }),
+      }).amount,
     ).toEqual(0);
+  });
+
+  it("surfaces boostsUsed entries for each contributing source", () => {
+    // Bull Run chapter (Cowboy Hat is a chapter ticket boost item).
+    // Fake timers are required: `getActiveCalendarEvent` reads the real
+    // clock to gate the Double Delivery window. Restore real timers in
+    // the finally so this test does not leak state into later tests.
+    const mockDate = new Date("2024-11-25T00:00:01Z");
+    const now = mockDate.getTime();
+    jest.useFakeTimers();
+    jest.setSystemTime(mockDate);
+
+    try {
+      const game: GameState = {
+        ...INITIAL_FARM,
+        inventory: {
+          ...INITIAL_FARM.inventory,
+          "Lifetime Farmer Banner": new Decimal(1),
+        },
+        bumpkin: {
+          ...TEST_BUMPKIN,
+          equipped: {
+            ...TEST_BUMPKIN.equipped,
+            hat: "Cowboy Hat",
+          },
+        },
+        npcs: {},
+        calendar: {
+          dates: [
+            {
+              name: "doubleDelivery",
+              date: new Date(now).toISOString().substring(0, 10),
+            },
+          ],
+          doubleDelivery: {
+            triggeredAt: now,
+            startedAt: now,
+          },
+        },
+      };
+
+      const { amount, boostsUsed } = generateDeliveryTickets({
+        game,
+        npc: "pumpkin' pete",
+        now,
+      });
+
+      // base 1 + VIP 2 + Cowboy Hat 1 = 4, then doubleDelivery * 2 = 8.
+      expect(amount).toEqual(8);
+      expect(boostsUsed).toEqual(
+        expect.arrayContaining([
+          { name: "VIP Access", value: "+2" },
+          { name: "Cowboy Hat", value: "+1" },
+          { name: "Double Delivery", value: "x2" },
+        ]),
+      );
+      expect(boostsUsed).toHaveLength(3);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("returns empty boostsUsed for a coin NPC", () => {
+    const now = new Date("2026-02-20T00:00:01Z").getTime();
+    const game: GameState = {
+      ...INITIAL_FARM,
+      npcs: {},
+      calendar: { dates: [] },
+    };
+
+    const { amount, boostsUsed } = generateDeliveryTickets({
+      game,
+      npc: "betty",
+      now,
+    });
+
+    expect(amount).toEqual(0);
+    expect(boostsUsed).toEqual([]);
   });
 
   it("returns 0 tickets for coin NPC even when double delivery is active", () => {
@@ -1966,7 +2046,7 @@ describe("deliver", () => {
       },
     };
 
-    const tickets = generateDeliveryTickets({
+    const { amount: tickets } = generateDeliveryTickets({
       game,
       npc: "betty",
       now,
