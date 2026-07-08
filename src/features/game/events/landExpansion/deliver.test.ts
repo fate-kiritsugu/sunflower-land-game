@@ -1505,6 +1505,86 @@ describe("deliver", () => {
 
     expect(state.coins).toEqual(130);
   });
+
+  it("add 45% coins bonus if has Betty's Friend skill rank 2 on Betty's orders with Coins reward", () => {
+    const state = deliverOrder({
+      state: {
+        ...TEST_FARM,
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: {
+            "Betty's Friend": 2,
+          },
+        },
+        inventory: {
+          Sunflower: new Decimal(60),
+        },
+        delivery: {
+          ...TEST_FARM.delivery,
+          fulfilledCount: 3,
+          orders: [
+            {
+              id: "123",
+              createdAt: 0,
+              readyAt: new Date("2023-10-31T15:00:00Z").getTime(),
+              from: "betty",
+              items: {
+                Sunflower: 50,
+              },
+              reward: { coins: 100 },
+            },
+          ],
+        },
+      },
+      action: {
+        id: "123",
+        type: "order.delivered",
+      },
+      createdAt: new Date("2024-05-10T16:00:00Z").getTime(),
+    });
+
+    expect(state.coins).toEqual(145);
+  });
+
+  it("add 60% coins bonus if has Betty's Friend skill rank 3 on Betty's orders with Coins reward", () => {
+    const state = deliverOrder({
+      state: {
+        ...TEST_FARM,
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: {
+            "Betty's Friend": 3,
+          },
+        },
+        inventory: {
+          Sunflower: new Decimal(60),
+        },
+        delivery: {
+          ...TEST_FARM.delivery,
+          fulfilledCount: 3,
+          orders: [
+            {
+              id: "123",
+              createdAt: 0,
+              readyAt: new Date("2023-10-31T15:00:00Z").getTime(),
+              from: "betty",
+              items: {
+                Sunflower: 50,
+              },
+              reward: { coins: 100 },
+            },
+          ],
+        },
+      },
+      action: {
+        id: "123",
+        type: "order.delivered",
+      },
+      createdAt: new Date("2024-05-10T16:00:00Z").getTime(),
+    });
+
+    expect(state.coins).toEqual(160);
+  });
   it("add 20% coins bonus if has Forge-Ward Profits skill on Blacksmith's orders with Coins reward", () => {
     const state = deliverOrder({
       state: {
@@ -1543,6 +1623,44 @@ describe("deliver", () => {
     });
 
     expect(state.coins).toEqual(120);
+  });
+
+  const blacksmithCoinsWithForgeWard = (rank: number) => {
+    const state = deliverOrder({
+      state: {
+        ...TEST_FARM,
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: { "Forge-Ward Profits": rank },
+        },
+        inventory: { Wood: new Decimal(50) },
+        delivery: {
+          ...TEST_FARM.delivery,
+          fulfilledCount: 3,
+          orders: [
+            {
+              id: "123",
+              createdAt: 0,
+              readyAt: new Date("2023-10-31T15:00:00Z").getTime(),
+              from: "blacksmith",
+              items: { Wood: 50 },
+              reward: { coins: 100 },
+            },
+          ],
+        },
+      },
+      action: { id: "123", type: "order.delivered" },
+      createdAt: new Date("2024-05-10T16:00:00Z").getTime(),
+    });
+    return state.coins;
+  };
+
+  it("adds 30% coins bonus with Forge-Ward Profits at rank 2", () => {
+    expect(blacksmithCoinsWithForgeWard(2)).toEqual(130);
+  });
+
+  it("adds 40% coins bonus with Forge-Ward Profits at rank 3", () => {
+    expect(blacksmithCoinsWithForgeWard(3)).toEqual(140);
   });
 
   it("does not add 30% coins bonus if has Betty's Friend skill on non Betty's orders with Coins reward", () => {
