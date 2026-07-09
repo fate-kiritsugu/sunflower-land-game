@@ -1744,6 +1744,88 @@ describe("deliver", () => {
     expect(state.coins).toEqual(480);
   });
 
+  it("gives 75% more Coins on fruit deliveries with Fruity Profit skill at rank 2", () => {
+    const state = deliverOrder({
+      state: {
+        ...TEST_FARM,
+        coins: 0,
+        inventory: {
+          Orange: new Decimal(5),
+          Grape: new Decimal(2),
+        },
+        delivery: {
+          ...TEST_FARM.delivery,
+          orders: [
+            {
+              id: "123",
+              createdAt: 0,
+              readyAt: Date.now(),
+              from: "tango",
+              items: {
+                Orange: 5,
+                Grape: 2,
+              },
+              reward: { coins: 320 },
+            },
+          ],
+        },
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: {
+            "Fruity Profit": 2,
+          },
+        },
+      },
+      action: {
+        id: "123",
+        type: "order.delivered",
+      },
+    });
+
+    expect(state.coins).toEqual(560);
+  });
+
+  it("gives 100% more Coins on fruit deliveries with Fruity Profit skill at rank 3", () => {
+    const state = deliverOrder({
+      state: {
+        ...TEST_FARM,
+        coins: 0,
+        inventory: {
+          Orange: new Decimal(5),
+          Grape: new Decimal(2),
+        },
+        delivery: {
+          ...TEST_FARM.delivery,
+          orders: [
+            {
+              id: "123",
+              createdAt: 0,
+              readyAt: Date.now(),
+              from: "tango",
+              items: {
+                Orange: 5,
+                Grape: 2,
+              },
+              reward: { coins: 320 },
+            },
+          ],
+        },
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: {
+            "Fruity Profit": 3,
+          },
+        },
+      },
+      action: {
+        id: "123",
+        type: "order.delivered",
+      },
+    });
+
+    expect(state.coins).toEqual(640);
+  });
+
   it("does not give Fruity Profit bonus if item is not fruit", () => {
     const state = deliverOrder({
       state: {
@@ -1820,6 +1902,45 @@ describe("deliver", () => {
     });
 
     expect(state.coins).toEqual(640);
+  });
+
+  it("scales Fishy Fortune with rank (+150% coins at rank 3)", () => {
+    const state = deliverOrder({
+      state: {
+        ...TEST_FARM,
+        coins: 0,
+        inventory: {
+          "Sunflower Cake": new Decimal(1),
+        },
+        delivery: {
+          ...TEST_FARM.delivery,
+          orders: [
+            {
+              id: "123",
+              createdAt: 0,
+              readyAt: Date.now(),
+              from: "corale",
+              items: {
+                "Sunflower Cake": 1,
+              },
+              reward: { coins: 320 },
+            },
+          ],
+        },
+        bumpkin: {
+          ...INITIAL_BUMPKIN,
+          skills: {
+            "Fishy Fortune": 3,
+          },
+        },
+      },
+      action: {
+        id: "123",
+        type: "order.delivered",
+      },
+    });
+
+    expect(state.coins).toEqual(800);
   });
 
   it("gives 10% more revenue on completed food orders with Nom Nom skill", () => {

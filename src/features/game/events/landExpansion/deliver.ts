@@ -40,6 +40,7 @@ import { getCountAndType } from "features/island/hud/components/inventory/utils/
 import { getChapterTaskPoints } from "features/game/types/tracks";
 import { handleChapterAnalytics } from "features/game/lib/trackAnalytics";
 import { hasTimeBasedFeatureAccess } from "lib/flags";
+import { mfTrack } from "lib/moonforgeAnalytics";
 
 export const TICKET_REWARDS: Record<QuestNPCName, number> = {
   "pumpkin' pete": 1,
@@ -274,27 +275,27 @@ export function getOrderSellPrice<T>(
     boostsUsed.push({ name: "Forge-Ward Profits", value: `+${b * 100}%` });
   }
 
-  // Fruity Profit - 50% Coins bonus if fruit
-  if (
-    game.bumpkin?.skills["Fruity Profit"] &&
-    order.reward.coins &&
-    order.from === "tango"
-  ) {
+  // Fruity Profit - 50%/75%/100% Coins bonus on Tango fruit deliveries (scales with rank)
+  const fruityProfitLevel = game.bumpkin
+    ? getSkillLevel(game.bumpkin.skills, "Fruity Profit")
+    : 0;
+  if (fruityProfitLevel && order.reward.coins && order.from === "tango") {
     const items = getKeys(order.items);
     if (items.some((name) => isFruit(name as PatchFruitName))) {
-      mul += 0.5;
-      boostsUsed.push({ name: "Fruity Profit", value: "+50%" });
+      const b = SKILL_RANKS["Fruity Profit"].ranks[fruityProfitLevel - 1];
+      mul += b;
+      boostsUsed.push({ name: "Fruity Profit", value: `+${b * 100}%` });
     }
   }
 
-  // Fishy Fortune - 50% Coins bonus if Corale NPC
-  if (
-    game.bumpkin?.skills["Fishy Fortune"] &&
-    order.reward.coins &&
-    order.from === "corale"
-  ) {
-    mul += 1;
-    boostsUsed.push({ name: "Fishy Fortune", value: "+100%" });
+  // Fishy Fortune - +100%/+125%/+150% Coins bonus on Corale deliveries (scales with rank)
+  const fishyFortuneLevel = game.bumpkin
+    ? getSkillLevel(game.bumpkin.skills, "Fishy Fortune")
+    : 0;
+  if (fishyFortuneLevel && order.reward.coins && order.from === "corale") {
+    const b = SKILL_RANKS["Fishy Fortune"].ranks[fishyFortuneLevel - 1];
+    mul += b;
+    boostsUsed.push({ name: "Fishy Fortune", value: `+${b * 100}%` });
   }
 
   // Nom Nom - 10% bonus with food orders
@@ -654,6 +655,12 @@ export function deliverOrder({
 
     // Mark as complete
     order.completedAt = Date.now();
+
+    mfTrack("delivery_completed", {
+      npc_id: order.from,
+      reward_coins: order.reward.coins ?? 0,
+      reward_tickets: ticketsToAward,
+    });
 
     return game;
   });

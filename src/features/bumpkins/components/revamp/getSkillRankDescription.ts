@@ -267,5 +267,171 @@ export const getSkillRankDescription = (
           value: SKILL_RANKS["Midas Rush"].ranks[i],
         }),
       };
+    case "Fruitful Fumble":
+      return {
+        buff: t("skill.fruitfulFumble.ranked", {
+          value: SKILL_RANKS["Fruitful Fumble"].ranks[i],
+        }),
+      };
+    case "Fruity Heaven":
+      return {
+        buff: t("skill.fruityHeaven.ranked", {
+          value: SKILL_RANKS["Fruity Heaven"].ranks[i],
+        }),
+      };
+    case "Fruity Profit":
+      return {
+        buff: t("skill.fruityProfit.ranked", {
+          value: SKILL_RANKS["Fruity Profit"].ranks[i] * 100,
+        }),
+      };
+    case "Catchup":
+      return {
+        buff: t("skill.catchup.ranked", {
+          value: SKILL_RANKS["Catchup"].ranks[i],
+        }),
+      };
+    case "Fruity Woody":
+      return {
+        buff: t("skill.fruityWoody.ranked", {
+          value: SKILL_RANKS["Fruity Woody"].ranks[i],
+        }),
+      };
+    case "Crime Fruit":
+      return {
+        buff: t("skill.crimeFruit.ranked", {
+          value: SKILL_RANKS["Crime Fruit"].ranks["Tomato Seed"]?.[i] ?? 0,
+        }),
+      };
+    case "Generous Orchard":
+      return {
+        buff: t("skill.generousOrchard.ranked", {
+          value: SKILL_RANKS["Generous Orchard"].ranks[i],
+        }),
+      };
+    case "Zesty Vibes":
+      return {
+        buff: t("skill.zestyVibes.buff.ranked", {
+          value: SKILL_RANKS["Zesty Vibes"].buff[i],
+        }),
+        debuff: t("skill.zestyVibes.debuff.ranked", {
+          value: SKILL_RANKS["Zesty Vibes"].debuff[i],
+        }),
+      };
+    case "Loyal Macaw":
+      return {
+        buff: t("skill.loyalMacaw.ranked", {
+          value: SKILL_RANKS["Loyal Macaw"].ranks[i],
+        }),
+      };
+    case "Pear Turbocharge":
+      return {
+        buff: t("skill.pearTurbocharge.ranked", {
+          value: SKILL_RANKS["Pear Turbocharge"].ranks[i],
+        }),
+      };
+    case "No Axe No Worries": {
+      const penalty = SKILL_RANKS["No Axe No Worries"].ranks[i];
+      return {
+        buff: t("skill.noAxeNoWorries.buff"),
+        // Rank 3 removes the debuff entirely, so drop the debuff line.
+        debuff:
+          penalty > 0
+            ? t("skill.noAxeNoWorries.debuff.ranked", { value: penalty })
+            : undefined,
+      };
+    }
+    case "Long Pickings":
+      return {
+        buff: t("skill.longPickings.buff.ranked", {
+          value: SKILL_RANKS["Long Pickings"].buff[i],
+        }),
+        debuff: t("skill.longPickings.debuff.ranked", {
+          value:
+            Math.round((SKILL_RANKS["Long Pickings"].debuff[i] - 1) * 1000) /
+            10,
+        }),
+      };
+    case "Short Pickings":
+      return {
+        buff: t("skill.shortPickings.buff.ranked", {
+          value: SKILL_RANKS["Short Pickings"].buff[i],
+        }),
+        debuff: t("skill.shortPickings.debuff.ranked", {
+          value:
+            Math.round((SKILL_RANKS["Short Pickings"].debuff[i] - 1) * 1000) /
+            10,
+        }),
+      };
+    case "Fisherman's 5 Fold":
+      return {
+        buff: t("skill.fishermansFiveFold.ranked", {
+          value: SKILL_RANKS["Fisherman's 5 Fold"].ranks[i],
+        }),
+      };
+    case "Fisherman's 10 Fold":
+      return {
+        buff: t("skill.fishermansTenFold.ranked", {
+          value: SKILL_RANKS["Fisherman's 10 Fold"].ranks[i],
+        }),
+      };
+    case "More With Less":
+      return {
+        buff: t("skill.moreWithLess.buff.ranked", {
+          value: SKILL_RANKS["More With Less"].ranks[i],
+        }),
+      };
+    case "Fishy Chance":
+      return {
+        buff: t("skill.fishyChance.ranked", {
+          value: SKILL_RANKS["Fishy Chance"].ranks[i],
+        }),
+      };
+    case "Fishy Roll":
+      return {
+        buff: t("skill.fishyRoll.ranked", {
+          value: SKILL_RANKS["Fishy Roll"].ranks[i],
+        }),
+      };
+    case "Fishy Gamble":
+      return {
+        buff: t("skill.fishyGamble.ranked", {
+          value: SKILL_RANKS["Fishy Gamble"].ranks[i],
+        }),
+      };
+    case "Reel Deal":
+      return {
+        buff: t("skill.reelDeal.ranked", {
+          value: SKILL_RANKS["Reel Deal"].ranks[i],
+        }),
+      };
+    case "Fishy Fortune":
+      return {
+        buff: t("skill.fishyFortune.ranked", {
+          value: SKILL_RANKS["Fishy Fortune"].ranks[i] * 100,
+        }),
+      };
+    case "Fishy Feast":
+      return {
+        buff: t("skill.fishyFeast.ranked", {
+          value: SKILL_RANKS["Fishy Feast"].ranks[i] * 100,
+        }),
+      };
+    case "Frenzied Fish": {
+      const { flat, crit } = SKILL_RANKS["Frenzied Fish"];
+      // Rank 3 is a flat catch with no crit chance, so drop the "and X% chance"
+      // clause.
+      return {
+        buff:
+          crit[i] > 0
+            ? t("skill.frenziedFish.ranked", {
+                fish: flat[i],
+                chance: crit[i],
+              })
+            : t("skill.frenziedFish.flat.ranked", {
+                fish: flat[i],
+              }),
+      };
+    }
   }
 };
