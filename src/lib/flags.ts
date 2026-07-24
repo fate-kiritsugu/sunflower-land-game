@@ -183,10 +183,11 @@ const FEATURE_FLAGS = {
   // baseDurationMs + true plantedAt model; when off, boosts stay discount-at-start.
   SPEED_BOOSTS: usernameFeatureFlag,
 
-  // Importing leftover items from the old home into the new interior.
-  HOME_ITEM_MIGRATION: betaFeatureFlag,
-
   SWAMP_ASCENSION: betaFeatureFlag,
+
+  // Bulk Mixer tab in the feeder machine: mix the missing feed for every
+  // waiting animal at once. Beta-pass / testnet only until it ships.
+  BULK_MIXER: betaFeatureFlag,
 
   // Per-rank skill upgrades (spend Ascension Shards + skill points to rank up a
   // skill). Kept on its own flag so the upgrade UI + `skill.upgraded` event can
