@@ -619,6 +619,7 @@ export const INITIAL_FARM: GameState = {
       },
     ],
   },
+  username: "T",
   collectibles: {},
   pumpkinPlaza: {},
   auctioneer: {},
