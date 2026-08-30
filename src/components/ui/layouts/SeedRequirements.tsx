@@ -10,13 +10,18 @@ import type {
   InventoryItemName,
   TemperateSeasonName,
 } from "features/game/types/game";
-import { ITEM_DETAILS } from "features/game/types/images";
+import {
+  ITEM_DETAILS,
+  getTranslatedItemName,
+} from "features/game/types/images";
 import React, { type JSX } from "react";
 import { Label } from "../Label";
 import { RequirementLabel } from "../RequirementsLabel";
 import { SquareIcon } from "../SquareIcon";
 import { formatDateRange, secondsToString } from "lib/utils/time";
 import { SUNNYSIDE } from "assets/sunnyside";
+import classNames from "classnames";
+import { isPreActionBoosted } from "features/game/lib/timerDisplay";
 import emptyPot from "assets/greenhouse/greenhouse_pot.webp";
 import flowerBed from "assets/flowers/empty_flowerbed.webp";
 
@@ -86,6 +91,8 @@ interface RequirementsProps {
   harvests?: HarvestsRequirementProps;
   time?: { seconds: number; boostsUsed: { name: BoostName; value: string }[] };
   baseTimeSeconds?: number;
+  /** Live speed-window rate for this seed's activity; > 1 shows the rate. */
+  timeSpeed?: number;
   level?: LevelRequirement;
   restriction?: {
     icon: string;
@@ -139,7 +146,7 @@ function getDetails(
       ITEM_ICONS(game.season.season, getCurrentBiome(game.island))[
         details.item
       ] ?? ITEM_DETAILS[details.item].image,
-    name: ITEM_DETAILS[details.item].translatedName ?? details.item,
+    name: getTranslatedItemName(details.item),
     limit: limit as Decimal,
   };
 }
@@ -265,10 +272,29 @@ export const SeedRequirements: React.FC<Props> = ({
 
   const getRequirements = () => {
     if (!requirements) return <></>;
-    const { coins, showCoinsIfFree, harvests, time, baseTimeSeconds, level } =
-      requirements;
+    const {
+      coins,
+      showCoinsIfFree,
+      harvests,
+      time,
+      baseTimeSeconds,
+      timeSpeed,
+      level,
+    } = requirements;
 
-    const isTimeBoosted = time?.seconds !== baseTimeSeconds;
+    // Named boosts are already folded into `time.seconds` and can be itemised; a
+    // live speed window shows as a rate (or a shorter projected time) but has no
+    // name to list, so it must not make the block clickable on its own.
+    const hasNamedBoosts = (time?.boostsUsed.length ?? 0) > 0;
+    const speed = timeSpeed ?? 1;
+    const isTimeBoosted =
+      !!time &&
+      isPreActionBoosted({
+        displaySeconds: time.seconds,
+        baseSeconds: baseTimeSeconds,
+        speed,
+        hasNamedBoosts,
+      });
 
     const RequirementLabels: React.FC = () => {
       if (isSeedCropMachine(details.item)) {
@@ -317,8 +343,12 @@ export const SeedRequirements: React.FC<Props> = ({
 
       return (
         <div
-          className="flex flex-col items-center cursor-pointer"
-          onClick={isTimeBoosted ? () => setShowBoosts(!showBoosts) : undefined}
+          className={classNames("flex flex-col items-center", {
+            "cursor-pointer": hasNamedBoosts,
+          })}
+          onClick={
+            hasNamedBoosts ? () => setShowBoosts(!showBoosts) : undefined
+          }
         >
           {!!time && isTimeBoosted && (
             <RequirementLabel type="time" waitSeconds={time.seconds} boosted />
@@ -332,7 +362,7 @@ export const SeedRequirements: React.FC<Props> = ({
           )}
           <BoostsDisplay
             boosts={time?.boostsUsed ?? []}
-            show={showBoosts}
+            show={hasNamedBoosts && showBoosts}
             state={gameState}
             onClick={() => setShowBoosts(!showBoosts)}
           />

@@ -2,7 +2,10 @@ import type { Schema, MapSchema, ArraySchema } from "@colyseus/schema";
 import type { NPCName } from "lib/npcs";
 import type { BumpkinParts } from "lib/utils/tokenUriBuilder";
 import type { SceneId } from "../mmoMachine";
-import type { Moderation } from "features/game/lib/gameMachine";
+// NOTE: `moderation` is deliberately absent from `Player` below, and should
+// stay that way. It was replicated behind a `@filter`, which forced the server
+// to re-encode the whole room separately for every client on every patch. The
+// MMO no longer carries moderation state at all.
 import type { FactionName } from "features/game/types/game";
 import type { PetNFTType } from "features/game/types/pets";
 
@@ -11,6 +14,12 @@ export interface InputData {
   y: number;
   tick: number;
   text: string;
+  /** Community-game score, sent live so the room stores it on the player. */
+  points?: number;
+  /** The community game the player is currently in. Sent on entry + every
+   * update; the room resets points when it changes, and clients filter the
+   * board/other players by it so different games never mix. */
+  giveawayId?: string;
 }
 
 export interface Player extends Schema {
@@ -19,6 +28,12 @@ export interface Player extends Schema {
   faction?: FactionName;
   x: number;
   y: number;
+  /** Community-game score, submitted live by the mini-game the player is in.
+   * Authoritative for the giveaway leaderboard. Optional until the room syncs it. */
+  points?: number;
+  /** The community game this player is currently in — clients filter the board
+   * and rendered players by it, so different/back-to-back games never mix. */
+  giveawayId?: string;
   experience: number;
   // Ascension band — needed to read `experience` as a level. Optional until the MMO
   // server syncs it; consumers default to 0 (legacy pre-ascension reading) meanwhile.
@@ -27,7 +42,6 @@ export interface Player extends Schema {
   clothing: BumpkinParts & { updatedAt: number };
   npc: NPCName;
   sceneId: SceneId;
-  moderation: Moderation;
 
   inputQueue: InputData[];
 }
@@ -121,6 +135,9 @@ export interface GiantFlower extends Schema {
 export interface PlazaRoomState extends Schema {
   mapWidth: number;
   mapHeight: number;
+
+  /** Authoritative server clock (epoch ms); 0 when the room doesn't publish it. */
+  serverTime: number;
 
   players: MapSchema<Player>;
   buds: MapSchema<Bud>;

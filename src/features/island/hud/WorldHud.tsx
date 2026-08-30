@@ -24,18 +24,13 @@ import { MarketplaceButton } from "./components/MarketplaceButton";
 import chest from "assets/icons/chest.png";
 import { StreamCountdown } from "./components/streamCountdown/StreamCountdown";
 import { FloatingIslandCountdown } from "./components/FloatingIslandCountdown";
+import { CommunityGameCountdown } from "features/giveaway/ui/CommunityGameCountdown";
 import { HudBumpkin } from "./components/bumpkinProfile/HudBumpkin";
 import classNames from "classnames";
 import { Feed } from "features/social/Feed";
 import { isMobile } from "mobile-device-detect";
-import { hasFeatureAccess } from "lib/flags";
 import { WorldFeedButton } from "features/social/components/WorldFeedButton";
 import type { MachineState } from "features/game/lib/gameMachine";
-import {
-  type Message,
-  ModerationTools,
-  type Player,
-} from "features/world/ui/moderationTools/ModerationTools";
 import { DesertDiggingDisplay } from "./components/DesertDiggingDisplay";
 import { RaffleWidget } from "features/retreat/components/auctioneer/RaffleWidget";
 /**
@@ -46,8 +41,6 @@ import { RaffleWidget } from "features/retreat/components/auctioneer/RaffleWidge
 type Props = {
   scene: string;
   server?: string;
-  messages: Message[];
-  players: Player[];
 };
 
 const _autosaving = (state: MachineState) => state.matches("autosaving");
@@ -57,12 +50,7 @@ const _isTutorial = (state: MachineState) =>
   state.context.state.island.type === "basic";
 const _state = (state: MachineState) => state.context.state;
 
-const HudComponent: React.FC<Props> = ({
-  server,
-  scene,
-  messages,
-  players,
-}) => {
+const HudComponent: React.FC<Props> = ({ server, scene }) => {
   const { t } = useAppTranslation();
   const { gameService, shortcutItem, selectedItem } = useContext(Context);
   const { openModal } = useContext(ModalContext);
@@ -127,14 +115,6 @@ const HudComponent: React.FC<Props> = ({
             },
           )}
         >
-          {hasFeatureAccess(state, "MODERATOR") && (
-            <ModerationTools
-              scene={scene}
-              messages={messages ?? []}
-              players={players ?? []}
-              gameService={gameService}
-            />
-          )}
           <WorldFeedButton showFeed={showFeed} setShowFeed={setShowFeed} />
           <MarketplaceButton />
           <TravelButton />
@@ -153,6 +133,8 @@ const HudComponent: React.FC<Props> = ({
         >
           <TransactionCountdown />
           <StreamCountdown />
+          {/* Community games widget — only while in the Kingdom (polls every 30s). */}
+          {scene === "kingdom" && <CommunityGameCountdown />}
           <RaffleWidget />
           <FloatingIslandCountdown />
           <AuctionCountdown />

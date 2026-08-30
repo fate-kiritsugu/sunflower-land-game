@@ -1,18 +1,21 @@
 import classNames from "classnames";
 import Decimal from "decimal.js-light";
-import { KNOWN_IDS } from "features/game/types";
 import type {
   BoostName,
   GameState,
   InventoryItemName,
   TemperateSeasonName,
 } from "features/game/types/game";
-import { ITEM_DETAILS } from "features/game/types/images";
+import {
+  ITEM_DETAILS,
+  getTranslatedItemName,
+} from "features/game/types/images";
 import React, { type JSX } from "react";
 import { RequirementLabel } from "../RequirementsLabel";
 import { SquareIcon } from "../SquareIcon";
 import { COLLECTIBLE_BUFF_LABELS } from "features/game/types/collectibleItemBuffs";
 import { Label } from "../Label";
+import { isPreActionBoosted } from "features/game/lib/timerDisplay";
 import { useAppTranslation } from "lib/i18n/useAppTranslations";
 import { ITEM_ICONS } from "features/island/hud/components/inventory/Chest";
 import { SEASON_ICONS } from "features/island/buildings/components/building/market/SeasonalSeeds";
@@ -50,25 +53,27 @@ interface HarvestsRequirementProps {
  * @param timeSeconds The wait time in seconds for using the item.
  * @param baseTimeSeconds The base wait time before boosts (for strikethrough display).
  * @param timeBoostsUsed The boosts applied to the grow time (for clickable boost display).
+ * @param timeSpeed Live speed-window rate for this activity; > 1 shows the rate.
  * @param harvests The min/max harvests for the item.
  * @param xp The XP gained for consuming the item.
  * @param xpBoostsUsed The boosts applied to food XP (for clickable boost display).
  * @param baseXp The base XP before boosts (for strikethrough display).
  * @param showBoosts Whether the boost panel is visible.
  * @param setShowBoosts Callback to toggle the boost panel.
- * @param showOpenSeaLink Whether to show the open sea link or not.
+ * @param onMarketplaceClick Callback to open the item in the marketplace. The link is hidden when not provided.
  */
 interface PropertiesProps {
   timeSeconds?: number;
   baseTimeSeconds?: number;
   timeBoostsUsed?: { name: BoostName; value: string }[];
+  timeSpeed?: number;
   harvests?: HarvestsRequirementProps;
   xp?: Decimal;
   xpBoostsUsed?: { name: BoostName; value: string }[];
   baseXp?: number;
   showBoosts?: boolean;
   setShowBoosts?: (show: boolean) => void;
-  showOpenSeaLink?: boolean;
+  onMarketplaceClick?: () => void;
 }
 
 /**
@@ -108,7 +113,6 @@ export const InventoryItemDetails: React.FC<Props> = ({
       ITEM_ICONS(game.season.season, getCurrentBiome(game.island), hasLevel)[
         details.item
       ] ?? item.image;
-    const title = item.translatedName ?? details.item;
 
     const description = getItemDescription({ item: details.item, game });
 
@@ -127,7 +131,7 @@ export const InventoryItemDetails: React.FC<Props> = ({
             </div>
           )}
           <span className={classNames("", { "sm:text-center": !wideLayout })}>
-            {title}
+            {getTranslatedItemName(details.item)}
           </span>
         </div>
         <span
@@ -177,11 +181,14 @@ export const InventoryItemDetails: React.FC<Props> = ({
     const getTimeDisplay = () => {
       if (!properties.timeSeconds) return <></>;
 
-      const isTimeBoosted =
-        properties.timeBoostsUsed &&
-        properties.timeBoostsUsed.length > 0 &&
-        properties.baseTimeSeconds !== undefined &&
-        properties.timeSeconds !== properties.baseTimeSeconds;
+      const hasNamedBoosts = (properties.timeBoostsUsed?.length ?? 0) > 0;
+      const speed = properties.timeSpeed ?? 1;
+      const isTimeBoosted = isPreActionBoosted({
+        displaySeconds: properties.timeSeconds,
+        baseSeconds: properties.baseTimeSeconds,
+        speed,
+        hasNamedBoosts,
+      });
 
       if (
         isTimeBoosted &&
@@ -191,24 +198,37 @@ export const InventoryItemDetails: React.FC<Props> = ({
       ) {
         return (
           <div
-            className="flex flex-col items-center cursor-pointer"
-            onClick={() => properties.setShowBoosts?.(!properties.showBoosts)}
+            className={classNames("flex flex-col items-center", {
+              // Only itemisable (named) boosts open the breakdown; a live speed
+              // window has no name to list.
+              "cursor-pointer": hasNamedBoosts,
+            })}
+            onClick={() =>
+              hasNamedBoosts &&
+              properties.setShowBoosts?.(!properties.showBoosts)
+            }
           >
             <RequirementLabel
               type="time"
               waitSeconds={properties.timeSeconds}
               boosted
             />
-            <RequirementLabel
-              type="time"
-              waitSeconds={properties.baseTimeSeconds ?? 0}
-              strikethrough
-            />
+            {properties.baseTimeSeconds !== undefined &&
+              properties.timeSeconds !== properties.baseTimeSeconds && (
+                <RequirementLabel
+                  type="time"
+                  waitSeconds={properties.baseTimeSeconds}
+                  strikethrough
+                />
+              )}
             <BoostsDisplay
               boosts={properties.timeBoostsUsed}
-              show={properties.showBoosts}
+              show={hasNamedBoosts && properties.showBoosts}
               state={game}
-              onClick={() => properties.setShowBoosts?.(!properties.showBoosts)}
+              onClick={() =>
+                hasNamedBoosts &&
+                properties.setShowBoosts?.(!properties.showBoosts)
+              }
             />
           </div>
         );
@@ -258,6 +278,15 @@ export const InventoryItemDetails: React.FC<Props> = ({
       return <RequirementLabel type="xp" xp={properties.xp} />;
     };
 
+    // Without any content the divider would show as an empty line
+    const hasContent =
+      !!properties.timeSeconds ||
+      !!properties.harvests ||
+      !!properties.xp ||
+      !!properties.onMarketplaceClick;
+
+    if (!hasContent) return <></>;
+
     return (
       <div
         className={classNames(
@@ -280,18 +309,14 @@ export const InventoryItemDetails: React.FC<Props> = ({
         {/* XP display */}
         {getXPDisplay()}
 
-        {/* OpenSea link */}
-        {properties.showOpenSeaLink && (
-          <a
-            href={`https://opensea.io/assets/matic/0x22d5f9b75c524fec1d6619787e582644cd4d7422/${
-              KNOWN_IDS[details.item]
-            }`}
-            className="underline text-xxs pb-1 pt-0.5 hover:text-blue-500"
-            target="_blank"
-            rel="noopener noreferrer"
+        {/* Marketplace link */}
+        {properties.onMarketplaceClick && (
+          <span
+            className="underline text-xxs pb-1 pt-0.5 cursor-pointer hover:text-blue-500"
+            onClick={properties.onMarketplaceClick}
           >
-            {t("opensea")}
-          </a>
+            {t("marketplace")}
+          </span>
         )}
       </div>
     );

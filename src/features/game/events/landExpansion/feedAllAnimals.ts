@@ -5,7 +5,10 @@ import {
 } from "features/game/types/animals";
 import type { CollectibleName } from "features/game/types/craftables";
 import type { GameState } from "features/game/types/game";
-import { makeAnimalBuildingKey } from "features/game/lib/animals";
+import {
+  getAnimalReadyAt,
+  makeAnimalBuildingKey,
+} from "features/game/lib/animals";
 import { isCollectibleBuilt } from "features/game/lib/collectibleBuilt";
 import { isWearableActive } from "features/game/lib/wearables";
 import { getKeys } from "lib/object";
@@ -19,6 +22,19 @@ export const GOLDEN_ANIMAL_ASSETS: Record<AnimalType, CollectibleName> = {
   Sheep: "Golden Sheep",
 };
 
+export function isAnimalCoveredByGoldenAsset({
+  state,
+  animalType,
+}: {
+  state: GameState;
+  animalType: AnimalType;
+}): boolean {
+  return isCollectibleBuilt({
+    name: GOLDEN_ANIMAL_ASSETS[animalType],
+    game: state,
+  });
+}
+
 export function getCoveredAnimalTypes({
   state,
   building,
@@ -29,7 +45,7 @@ export function getCoveredAnimalTypes({
   return getKeys(ANIMALS).filter(
     (type) =>
       ANIMALS[type].buildingRequired === building &&
-      isCollectibleBuilt({ name: GOLDEN_ANIMAL_ASSETS[type], game: state }),
+      isAnimalCoveredByGoldenAsset({ state, animalType: type }),
   );
 }
 
@@ -65,7 +81,7 @@ export function getFeedAllTargets({
 
     // Sleeping animals (including needsLove, which only occurs while
     // asleep) are never touched by the bulk action.
-    if (createdAt < animal.awakeAt) return;
+    if (createdAt < getAnimalReadyAt(animal, state)) return;
 
     if (animal.state === "ready") {
       // Capacity lock does not block claiming, matching the manual UI.

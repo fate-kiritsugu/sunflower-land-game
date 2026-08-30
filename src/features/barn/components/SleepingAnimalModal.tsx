@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useRef, useState } from "react";
 
 import { Box } from "components/ui/Box";
 import { Button } from "components/ui/Button";
@@ -12,21 +12,99 @@ import { InnerPanel } from "components/ui/Panel";
 import { SUNNYSIDE } from "assets/sunnyside";
 import { Context } from "features/game/GameProvider";
 import { getAnimalToy } from "features/game/events/landExpansion/wakeUpAnimal";
-import type { Animal } from "features/game/types/game";
+import type {
+  Animal,
+  AnimalResource,
+  BoostName,
+  GameState,
+} from "features/game/types/game";
 import {
   getAnimalFavoriteFood,
   getAnimalLevel,
+  getResourceDropAmount,
   isMaxLevel as isMaxAnimalLevel,
 } from "features/game/lib/animals";
-import { ANIMAL_LEVELS, type AnimalLevel } from "features/game/types/animals";
+import {
+  ANIMAL_LEVELS,
+  ANIMAL_RESOURCE_DROP,
+  type AnimalLevel,
+} from "features/game/types/animals";
 import {
   getAnimalXP,
   getNextLoveAvailableAt,
 } from "features/game/events/landExpansion/loveAnimal";
 import { getCountAndType } from "features/island/hud/components/inventory/utils/inventory";
 import { useSelector } from "@xstate/react";
-import glow from "public/world/glow.png";
+import { SparkleBurst } from "features/farming/animals/components/MutantSparkles";
 import { useCountdown } from "lib/utils/hooks/useCountdown";
+import { isAnimalCoveredByGoldenAsset } from "features/game/events/landExpansion/feedAllAnimals";
+import { BoostsDisplay } from "components/ui/layouts/BoostsDisplay";
+import { useNodeTimer } from "features/game/lib/useNodeTimer";
+import { getAnimalBoostWindows } from "features/game/lib/boostWindows";
+import { formatNumber } from "lib/utils/formatNumber";
+
+const ProductionResource: React.FC<{
+  resource: AnimalResource;
+  amount: number;
+  boosts: { name: BoostName; value: string }[];
+  state: GameState;
+  showBoosts: boolean;
+  onToggle: () => void;
+}> = ({ resource, amount, boosts, state, showBoosts, onToggle }) => {
+  const { t } = useAppTranslation();
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const hasBoosts = boosts.length > 0;
+
+  const content = (
+    <>
+      <img
+        src={ITEM_DETAILS[resource].image}
+        alt={resource}
+        className="w-5 mr-1"
+      />
+      <span className="text-sm whitespace-nowrap">{resource}</span>
+      <span aria-hidden="true" className="mx-1 text-sm">
+        {"×"}
+      </span>
+      <span className="text-sm whitespace-nowrap">{formatNumber(amount)}</span>
+      {hasBoosts && (
+        <img
+          src={SUNNYSIDE.icons.lightning}
+          alt={t("cropMachine.boosted")}
+          className="w-3 ml-1"
+        />
+      )}
+    </>
+  );
+
+  if (!hasBoosts) {
+    return (
+      <div className="flex items-center py-0.5 whitespace-nowrap">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      ref={anchorRef}
+      type="button"
+      className="relative flex items-center py-0.5 cursor-pointer whitespace-nowrap"
+      aria-expanded={showBoosts}
+      onClick={onToggle}
+    >
+      {content}
+      <BoostsDisplay
+        boosts={boosts}
+        show={showBoosts}
+        state={state}
+        onClick={onToggle}
+        anchorRef={anchorRef}
+        portalAlign="center"
+      />
+    </button>
+  );
+};
 
 interface Props {
   onClose: () => void;
@@ -43,14 +121,30 @@ export const SleepingAnimalModal = ({
 }: Props) => {
   const { gameService } = useContext(Context);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [activeProductionResource, setActiveProductionResource] =
+    useState<AnimalResource | null>(null);
   const { t } = useAppTranslation();
-  const { totalSeconds: secondsLeft } = useCountdown(awakeAt);
+  const state = useSelector(gameService, (state) => state.context.state);
+
+  // `awakeAt` is already the live windowed wake time — the animal components
+  // resolve it before rendering this modal (see `resolveAnimal`).
+  const { displaySeconds: secondsLeft, speed } = useNodeTimer({
+    startedAt: animal.asleepAt,
+    baseDurationMs: animal.baseDurationMs,
+    windows: getAnimalBoostWindows(state, animal.type),
+    legacyReadyAt: awakeAt,
+  });
+  // The love slot is a wall-clock boundary, not a work timer, so it counts down
+  // in real time regardless of the display setting.
   const { totalSeconds: secondsUntilLove } = useCountdown(
-    getNextLoveAvailableAt(animal),
+    getNextLoveAvailableAt(animal, awakeAt),
   );
 
   const toy = getAnimalToy({ animal });
-  const state = useSelector(gameService, (state) => state.context.state);
+  const isCoveredByGoldenAsset = isAnimalCoveredByGoldenAsset({
+    state,
+    animalType: animal.type,
+  });
 
   const { count } = getCountAndType(state, toy);
 
@@ -96,6 +190,24 @@ export const SleepingAnimalModal = ({
 
   const level = getAnimalLevel(animal.experience, animal.type);
   const isMaxLevel = isMaxAnimalLevel(animal.type, level);
+  const production = Object.entries(
+    ANIMAL_RESOURCE_DROP[animal.type][level],
+  ).map(([resource, baseAmount]) => {
+    const result = getResourceDropAmount({
+      game: state,
+      animalType: animal.type,
+      resource: resource as AnimalResource,
+      baseAmount: baseAmount.toNumber(),
+      multiplier: animal.multiplier ?? 0,
+      animal,
+    });
+
+    return {
+      resource: resource as AnimalResource,
+      baseAmount: baseAmount.toNumber(),
+      ...result,
+    };
+  });
 
   const xpToNext = isMaxLevel
     ? (() => {
@@ -131,7 +243,52 @@ export const SleepingAnimalModal = ({
             {" "}
             {`${t("wakesIn")} ${secondsToString(secondsLeft, { length: "medium" })}`}
           </span>
+          {speed > 1 && (
+            <Label
+              type="transparent"
+              icon={SUNNYSIDE.icons.lightning}
+              className="self-center"
+            >
+              <span className="whitespace-nowrap">
+                {t("description.boostedSpeed", {
+                  speed: Number(speed.toFixed(2)),
+                })}
+              </span>
+            </Label>
+          )}
         </div>
+        {production.length > 0 && (
+          <div
+            className="flex text-sm p-1 items-center"
+            aria-label={t("sleepingAnimal.production")}
+          >
+            <img
+              src={SUNNYSIDE.icons.basket}
+              alt={t("sleepingAnimal.production")}
+              className="w-6 mr-1 shrink-0"
+            />
+            <span aria-hidden="true" className="mr-2 text-sm">
+              {":"}
+            </span>
+            <div className="flex flex-nowrap items-center gap-x-3 whitespace-nowrap">
+              {production.map(({ resource, amount, boostsUsed }) => (
+                <ProductionResource
+                  key={resource}
+                  resource={resource}
+                  amount={amount}
+                  boosts={boostsUsed}
+                  state={state}
+                  showBoosts={activeProductionResource === resource}
+                  onToggle={() =>
+                    setActiveProductionResource((active) =>
+                      active === resource ? null : resource,
+                    )
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        )}
         {/* XP progress */}
         <div className="flex text-sm p-1 items-center">
           <img src={SUNNYSIDE.icons.lightning} alt="XP" className="w-6 mr-2" />
@@ -163,36 +320,42 @@ export const SleepingAnimalModal = ({
             </span>
           </div>
         </div>
-        <div className="flex text-sm p-1 items-center">
-          <img
-            src={ITEM_DETAILS[animal.item].image}
-            alt="Sleep"
-            className="w-6 mr-2"
-          />
-          <div className="w-full">
-            <div className="flex items-center justify-between w-full">
-              <p className="text-sm font-secondary">{`${animal.item} (+${animalXP}XP)`}</p>
-              {!hasTool && (
-                <Label type="danger" className="text-xxs">
-                  {t("sleepingAnimal.missing")}
-                </Label>
-              )}
+        {!isCoveredByGoldenAsset && (
+          <div className="flex text-sm p-1 items-center">
+            <img
+              src={ITEM_DETAILS[animal.item].image}
+              alt="Sleep"
+              className="w-6 mr-2"
+            />
+            <div className="w-full">
+              <div className="flex items-center justify-between w-full">
+                <p className="text-sm font-secondary">{`${animal.item} (+${animalXP}XP)`}</p>
+                {!hasTool && (
+                  <Label type="danger" className="text-xxs">
+                    {t("sleepingAnimal.missing")}
+                  </Label>
+                )}
+              </div>
+              <span className="text-xs -top-0.5 relative">
+                {secondsUntilLove > 0
+                  ? t("pets.nextRequestsIn", {
+                      time: secondsToString(secondsUntilLove, {
+                        length: "medium",
+                      }),
+                    })
+                  : t("ready")}
+              </span>
             </div>
-            <span className="text-xs -top-0.5 relative">
-              {secondsUntilLove > 0
-                ? t("pets.nextRequestsIn", {
-                    time: secondsToString(secondsUntilLove, {
-                      length: "medium",
-                    }),
-                  })
-                : t("ready")}
-            </span>
           </div>
-        </div>
+        )}
 
         {mutantName && (
           <div className="flex p-1 items-center w-[330px]">
-            <img src={glow} className="w-6 mr-2" />
+            <SparkleBurst
+              width={24}
+              duration={1.05}
+              className="mr-2 shrink-0"
+            />
             <div>
               <p className="text-sm mr-2">
                 {t("sleepingAnimal.mutantClue1", { type: animal.type })}

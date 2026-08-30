@@ -22,6 +22,7 @@ import { ToastPanel } from "../toast/ToastPanel";
 import { Panel } from "components/ui/Panel";
 
 import { Swarming } from "../components/Swarming";
+import { Captcha } from "../components/captcha/Captcha";
 import { Cooldown } from "../components/Cooldown";
 import { Route, Routes } from "react-router";
 import { Land } from "./Land";
@@ -90,6 +91,7 @@ import {
 import { LoveCharm } from "./components/LoveCharm";
 import { ClaimReferralRewards } from "./components/ClaimReferralRewards";
 import { ReferralsAnnouncement } from "./components/ReferralsAnnouncement";
+import { TermsAndConditions } from "./components/TermsAndConditions";
 import { SoftBan } from "features/retreat/components/personhood/SoftBan";
 import { RewardBox } from "features/rewardBoxes/RewardBox";
 import { SystemMessageWidget } from "features/announcements/SystemMessageWidget";
@@ -219,6 +221,7 @@ const SHOW_MODAL: Record<StateValues, boolean> = {
   depositing: true,
   introduction: false,
   welcome: true,
+  termsAndConditions: true,
   vip: true,
   transacting: true,
   auctionResults: false,
@@ -246,10 +249,13 @@ const SHOW_MODAL: Record<StateValues, boolean> = {
   linkWallet: true,
   dailyReward: true,
   starterOffer: true,
+  captcha: true,
 };
 
 // State change selectors
 const isWelcome = (state: MachineState) => state.matches("welcome");
+const isTermsAndConditions = (state: MachineState) =>
+  state.matches("termsAndConditions");
 const isLoading = (state: MachineState) =>
   state.matches("loading") || state.matches("portalling");
 const isPortalling = (state: MachineState) => state.matches("portalling");
@@ -270,6 +276,7 @@ const isRefreshing = (state: MachineState) => state.matches("refreshing");
 const isBuyingSFL = (state: MachineState) => state.matches("buyingSFL");
 const isError = (state: MachineState) => state.matches("error");
 const isSwarming = (state: MachineState) => state.matches("swarming");
+const isCaptcha = (state: MachineState) => state.matches("captcha");
 const isPurchasing = (state: MachineState) =>
   state.matches("purchasing") || state.matches("buyingBlockBucks");
 
@@ -299,6 +306,7 @@ const isRefundingAuction = (state: MachineState) =>
 const isPromoing = (state: MachineState) => state.matches("promo");
 const isBlacklisted = (state: MachineState) => state.matches("blacklisted");
 const getBanReason = (state: MachineState) => state.context.banReason;
+const getBanMessage = (state: MachineState) => state.context.banMessage;
 const hasAirdrop = (state: MachineState) => state.matches("airdrop");
 const isOnChainRaffleAcknowledgment = (state: MachineState) =>
   state.matches("onChainRaffleAcknowledgment");
@@ -468,6 +476,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
 
   const loading = useSelector(gameService, isLoading);
   const welcome = useSelector(gameService, isWelcome);
+  const termsAndConditions = useSelector(gameService, isTermsAndConditions);
   const portalling = useSelector(gameService, isPortalling);
   const trading = useSelector(gameService, isTrading);
   const traded = useSelector(gameService, isTraded);
@@ -486,6 +495,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
   const error = useSelector(gameService, isError);
   const purchasing = useSelector(gameService, isPurchasing);
   const swarming = useSelector(gameService, isSwarming);
+  const captcha = useSelector(gameService, isCaptcha);
   const coolingDown = useSelector(gameService, isCoolingDown);
   const depositing = useSelector(gameService, isDepositing);
   const loadingLandToVisit = useSelector(gameService, isLoadingLandToVisit);
@@ -499,6 +509,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
   const promo = useSelector(gameService, isPromoing);
   const blacklisted = useSelector(gameService, isBlacklisted);
   const banReason = useSelector(gameService, getBanReason);
+  const banMessage = useSelector(gameService, getBanMessage);
   const airdrop = useSelector(gameService, hasAirdrop);
   const onChainRaffleAcknowledgment = useSelector(
     gameService,
@@ -649,7 +660,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
       <Ocean>
         <Modal show backdrop={false}>
           <Panel>
-            <Blacklisted banReason={banReason} />
+            <Blacklisted banReason={banReason} banMessage={banMessage} />
           </Panel>
         </Modal>
       </Ocean>
@@ -711,10 +722,12 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
             {error && <ErrorMessage errorCode={errorCode as ErrorCode} />}
             {purchasing && <Purchasing />}
             {swarming && <Swarming />}
+            {captcha && <Captcha />}
             {coolingDown && <Cooldown />}
             {dailyReward && <DailyRewardClaim showClose />}
             {transacting && <Transaction />}
             {welcome && <Welcome />}
+            {termsAndConditions && <TermsAndConditions />}
             {depositing && <Loading text={t("depositing")} />}
             {trading && <Loading text={t("trading")} />}
             {traded && <Traded />}

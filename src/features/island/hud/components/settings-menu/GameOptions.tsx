@@ -46,6 +46,9 @@ import { useSound } from "lib/utils/hooks/useSound";
 import { PickServer } from "./plaza-settings/PickServer";
 import { PlazaShaderSettings } from "./plaza-settings/PlazaShaderSettings";
 import { Preferences } from "./general-settings/Preferences";
+import { DEV_TimeMachine } from "./developer-options/DEV_TimeMachine";
+import { CONFIG } from "lib/config";
+import { createPortal } from "react-dom";
 import type { AuthMachineState } from "features/auth/lib/authMachine";
 import {
   getSubscriptionsForFarmId,
@@ -59,11 +62,12 @@ import { AirdropPlayer } from "./general-settings/AirdropPlayer";
 import { FaceRecognitionSettings } from "features/retreat/components/personhood/FaceRecognition";
 import { DEV_PlayerSearch } from "./developer-options/DEV_PlayerSearch";
 import { DEV_ErrorSearch } from "./developer-options/DEV_ErrorSearch";
-import { ApiKey } from "./general-settings/ApiKey";
 import { ExperimentsSettings } from "./experiments-settings/ExperimentsSettings";
+import { BetaFeatures } from "./beta-features/BetaFeatures";
 import { EconomyEditorExperimentSettings } from "./experiments-settings/EconomyEditorExperimentSettings";
 import { InteriorExperimentSettings } from "./experiments-settings/InteriorExperimentSettings";
 import { ToolShopBuyAllExperimentSettings } from "./experiments-settings/ToolShopBuyAllExperimentSettings";
+import { CustomCursorExperimentSettings } from "./experiments-settings/CustomCursorExperimentSettings";
 import type { ContentComponentProps, SettingMenuId } from "./types";
 import { TwitterRewards } from "features/auth/components/Twitter/Twitter";
 import { TelegramBody } from "features/auth/components/Telegram/Telegram";
@@ -227,6 +231,7 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const { gameService } = useContext(GameContext);
   const farmId = useSelector(gameService, _farmId);
   const [selected, setSelected] = useState<SettingMenuId>("main");
+  const [showTimeMachine, setShowTimeMachine] = useState(false);
   const isLinkingSocial = useSelector(gameService, _linkingSocial);
   const isLinkingSocialSuccess = useSelector(
     gameService,
@@ -257,20 +262,34 @@ export const GameOptionsModal: React.FC<GameOptionsModalProps> = ({
   const SelectedComponent = SETTING_MENUS[selected].content;
 
   return (
-    <Modal show={show} onHide={isLinkingInFlight ? undefined : onHide}>
-      <CloseButtonPanel
-        title={SETTING_MENUS[selected].title}
-        onBack={
-          !isLinkingInFlight && selected !== "main"
-            ? () => setSelected(SETTING_MENUS[selected].parent)
-            : undefined
-        }
-        onClose={isLinkingInFlight ? undefined : onHide}
-      >
-        <SelectedComponent onSubMenuClick={setSelected} onClose={onHide} />
-      </CloseButtonPanel>
-      <ReferralWidget />
-    </Modal>
+    <>
+      <Modal show={show} onHide={isLinkingInFlight ? undefined : onHide}>
+        <CloseButtonPanel
+          title={SETTING_MENUS[selected].title}
+          onBack={
+            !isLinkingInFlight && selected !== "main"
+              ? () => setSelected(SETTING_MENUS[selected].parent)
+              : undefined
+          }
+          onClose={isLinkingInFlight ? undefined : onHide}
+        >
+          <SelectedComponent
+            onSubMenuClick={setSelected}
+            onClose={onHide}
+            onTimeMachineToggle={() =>
+              setShowTimeMachine((visible) => !visible)
+            }
+          />
+        </CloseButtonPanel>
+        <ReferralWidget />
+      </Modal>
+      {CONFIG.NETWORK === "amoy" &&
+        showTimeMachine &&
+        createPortal(
+          <DEV_TimeMachine onClose={() => setShowTimeMachine(false)} />,
+          document.body,
+        )}
+    </>
   );
 };
 
@@ -387,7 +406,16 @@ export const SETTING_MENUS: Record<SettingMenuId, SettingMenu> = {
     parent: "experiments",
     content: ToolShopBuyAllExperimentSettings,
   },
-
+  customCursor: {
+    title: translate("gameOptions.experiments.customCursor"),
+    parent: "experiments",
+    content: CustomCursorExperimentSettings,
+  },
+  betaFeatures: {
+    title: translate("gameOptions.betaFeatures"),
+    parent: "advanced",
+    content: BetaFeatures,
+  },
   // Account
   faceRecognition: {
     title: translate("gameOptions.faceRecognition"),
@@ -424,12 +452,6 @@ export const SETTING_MENUS: Record<SettingMenuId, SettingMenu> = {
     title: translate("gameOptions.generalSettings.notifications"),
     parent: "preferences",
     content: Notifications,
-  },
-
-  apiKey: {
-    title: translate("share.apiKey"),
-    parent: "amoy",
-    content: ApiKey,
   },
 
   // Developer Options

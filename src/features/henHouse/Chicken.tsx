@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { SUNNYSIDE } from "assets/sunnyside";
 import { GRID_WIDTH_PX, PIXEL_SCALE } from "features/game/lib/constants";
 import type { MachineState } from "features/game/lib/gameMachine";
@@ -16,6 +16,7 @@ import {
   getAnimalLevel,
   getBoostedFoodQuantity,
   isAnimalFood,
+  resolveAnimal,
 } from "features/game/lib/animals";
 import classNames from "classnames";
 import { LevelProgress } from "features/game/expansion/components/animals/LevelProgress";
@@ -43,15 +44,15 @@ import {
 } from "features/game/events/landExpansion/feedAnimal";
 import { getAnimalXP } from "features/game/events/landExpansion/loveAnimal";
 import { isAnimalFeedable } from "features/game/events/landExpansion/buyAnimal";
-import { isCollectibleBuilt } from "features/game/lib/collectibleBuilt";
+import { isAnimalCoveredByGoldenAsset } from "features/game/events/landExpansion/feedAllAnimals";
 import { MutantAnimalModal } from "features/farming/animals/components/MutantAnimalModal";
+import { MutantSparkles } from "features/farming/animals/components/MutantSparkles";
 import { isWearableActive } from "features/game/lib/wearables";
 import { Modal } from "components/ui/Modal";
 import { CloseButtonPanel } from "features/game/components/CloseablePanel";
 import { OuterPanel } from "components/ui/Panel";
 import { SleepingAnimalModal } from "features/barn/components/SleepingAnimalModal";
 import { LockedAnimalModal } from "features/barn/components/LockedAnimalModal";
-import glow from "public/world/glow.png";
 
 export const CHICKEN_EMOTION_ICONS: Record<
   Exclude<TState["value"], "idle" | "needsLove" | "initial" | "sick">,
@@ -116,8 +117,15 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
 }) => {
   const { gameService, selectedItem, shortcutItem } = useContext(Context);
   const { t } = useAppTranslation();
-  const chicken = useSelector(gameService, _chicken(id));
+  const storedChicken = useSelector(gameService, _chicken(id));
   const game = useSelector(gameService, _game);
+  // The animal machine has no access to game state, so every consumer below —
+  // the machine included — is handed the animal with its live windowed wake time
+  // substituted in. Read-only: nothing here writes an animal back.
+  const chicken = useMemo(
+    () => resolveAnimal(storedChicken, game),
+    [storedChicken, game],
+  );
   const inventory = useSelector(gameService, _inventory);
   const chickenService = useInterpret(animalMachine, {
     context: { animal: chicken },
@@ -248,9 +256,9 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
     animal: chicken,
   });
 
-  const hasGoldEgg = isCollectibleBuilt({
-    name: "Gold Egg",
-    game,
+  const hasGoldEgg = isAnimalCoveredByGoldenAsset({
+    state: game,
+    animalType: "Chicken",
   });
 
   const hasOracleSyringeEquipped = isWearableActive({
@@ -272,7 +280,13 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
     setShowFeedXP(true);
     setTimeout(() => setShowFeedXP(false), 700);
 
-    const updatedChicken = updatedState.context.state.henHouse.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedChicken = resolveAnimal(
+      updatedState.context.state.henHouse.animals[id],
+      updatedState.context.state,
+    );
 
     chickenService.send({
       type: "FEED",
@@ -303,7 +317,13 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
     setShowLoveItem(item as LoveAnimalItem);
     setTimeout(() => setShowLoveItem(undefined), 700);
 
-    const updatedChicken = updatedState.context.state.henHouse.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedChicken = resolveAnimal(
+      updatedState.context.state.henHouse.animals[id],
+      updatedState.context.state,
+    );
 
     chickenService.send({
       type: "LOVE",
@@ -320,7 +340,13 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
       id: chicken.id,
     });
 
-    const updatedChicken = updatedState.context.state.henHouse.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedChicken = resolveAnimal(
+      updatedState.context.state.henHouse.animals[id],
+      updatedState.context.state,
+    );
 
     chickenService.send({
       type: "CLAIM_PRODUCE",
@@ -335,7 +361,13 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
       id: chicken.id,
     });
 
-    const updatedChicken = updatedState.context.state.henHouse.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedChicken = resolveAnimal(
+      updatedState.context.state.henHouse.animals[id],
+      updatedState.context.state,
+    );
 
     chickenService.send({
       type: "CURE",
@@ -414,7 +446,12 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
 
     if (sick) return onSickClick();
 
-    if (needsLove) return onLoveClick();
+    if (needsLove) {
+      if (!hasGoldEgg) return onLoveClick();
+
+      handleShowDetails();
+      return;
+    }
 
     const hasBuffSelected = selectedItem && isAnimalFeedBuffItem(selectedItem);
 
@@ -539,7 +576,7 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
     return favFood;
   };
   const showRequestBubble =
-    sick || needsLove || (idle && !isLocked && !showDrops);
+    sick || (needsLove && !hasGoldEgg) || (idle && !isLocked && !showDrops);
 
   if (chickenMachineState === "initial") return null;
 
@@ -565,19 +602,6 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
           onContinue={() => {
             setShowMutantAnimalModal(false);
             onReadyClick();
-          }}
-        />
-      )}
-
-      {/* Upcoming Mutant Sign */}
-      {mutantName && (
-        <img
-          src={glow}
-          className="absolute animate-pulsate pointer-events-none"
-          style={{
-            bottom: "-6px",
-            maxWidth: "85px",
-            maxHeight: "85px",
           }}
         />
       )}
@@ -628,6 +652,8 @@ export const Chicken: React.FC<{ id: string; disabled: boolean }> = ({
               },
             )}
           />
+          {/* Upcoming Mutant Sign */}
+          {mutantName && <MutantSparkles />}
           {/* Emotion */}
           {!idle && !needsLove && !sick && (
             <img

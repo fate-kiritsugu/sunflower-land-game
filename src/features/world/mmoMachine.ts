@@ -12,7 +12,6 @@ import type {
 import type { Pets } from "features/game/types/pets";
 import { INITIAL_BUMPKIN } from "features/game/lib/constants";
 import { SPAWNS } from "./lib/spawn";
-import type { Moderation } from "features/game/lib/gameMachine";
 import { MAX_PLAYERS } from "./lib/availableRooms";
 import type { NPCName } from "lib/npcs";
 import type { Coordinates } from "features/game/expansion/components/MapPlacement";
@@ -44,6 +43,11 @@ export type Scenes = {
   infernos: Room<PlazaRoomState> | undefined;
   stream: Room<PlazaRoomState> | undefined;
   love_island: Room<PlazaRoomState> | undefined;
+  giveaway_race: Room<PlazaRoomState> | undefined;
+  giveaway_chop: Room<PlazaRoomState> | undefined;
+  giveaway_jump: Room<PlazaRoomState> | undefined;
+  giveaway_trivia: Room<PlazaRoomState> | undefined;
+  giveaway_pop: Room<PlazaRoomState> | undefined;
 };
 
 export type SceneId = keyof Scenes;
@@ -84,7 +88,8 @@ export type ServerId =
   | "sunflorea_magic"
   | "sunflorea_kale"
   | "sunflorea_flower"
-  | "sunflorea_stream";
+  | "sunflorea_stream"
+  | "sunflorea_party_games";
 
 export type ServerName =
   | "Bliss"
@@ -164,7 +169,6 @@ export interface MMOContext {
   experience: number;
   isCommunity?: boolean;
   firstDeliveryNpc?: NPCName;
-  moderation: Moderation;
   totalDeliveries: number;
   dailyStreak: number;
   isVip: boolean;
@@ -244,10 +248,6 @@ export const mmoMachine = createMachine<MMOContext, MMOEvent, MMOState>({
     isVip: false,
     createdAt: 0,
     islandType: "basic",
-    moderation: {
-      kicked: [],
-      muted: [],
-    },
     playerCoordinates: undefined,
   },
   states: {
@@ -295,10 +295,24 @@ export const mmoMachine = createMachine<MMOContext, MMOEvent, MMOState>({
             return { ...server, population };
           });
 
-          // If in stream scene, join stream server
+          // The stream (town hall) has its own dedicated server.
           if (context.sceneId === "stream") {
             const client = new Client(url);
             return { client, serverId: "sunflorea_stream", servers };
+          }
+
+          // Giveaway mini-games share ONE dedicated "party games" server —
+          // separate from the stream/town-hall crowd, but together so everyone
+          // in the event sees each other.
+          if (
+            context.sceneId === "giveaway_race" ||
+            context.sceneId === "giveaway_chop" ||
+            context.sceneId === "giveaway_jump" ||
+            context.sceneId === "giveaway_trivia" ||
+            context.sceneId === "giveaway_pop"
+          ) {
+            const client = new Client(url);
+            return { client, serverId: "sunflorea_party_games", servers };
           }
 
           const server = pickServer(servers);
@@ -352,7 +366,6 @@ export const mmoMachine = createMachine<MMOContext, MMOEvent, MMOState>({
             y: SPAWNS().plaza.default.y,
             sceneId: context.sceneId,
             experience: context.experience,
-            moderation: context.moderation,
             username: context.username,
             faction: context.faction,
             totalDeliveries: context.totalDeliveries,
@@ -411,7 +424,6 @@ export const mmoMachine = createMachine<MMOContext, MMOEvent, MMOState>({
               y: SPAWNS().plaza.default.y,
               sceneId: context.sceneId,
               experience: context.experience,
-              moderation: context.moderation,
               totalDeliveries: context.totalDeliveries,
               dailyStreak: context.dailyStreak,
               isVip: context.isVip,

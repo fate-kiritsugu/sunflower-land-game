@@ -24,7 +24,7 @@ const usernameFeatureFlag = (game: GameState) => {
   );
 };
 
-const betaFeatureFlag = ({ inventory }: GameState) =>
+export const betaFeatureFlag = ({ inventory }: GameState) =>
   CONFIG.NETWORK === "amoy" || !!inventory?.["Beta Pass"]?.gt(0);
 
 export const testnetFeatureFlag = () => CONFIG.NETWORK === "amoy";
@@ -95,6 +95,14 @@ export const TIME_BASED_FEATURE_FLAG_WINDOWS = {
     start: new Date("2026-09-07T00:00:00Z"),
     end: null,
   },
+  // Ascension Age chapter VIP perk: VIP holders expand their land 10% faster.
+  // Live from Mon 10th Aug 2026 (when the chapter's tasks begin) until the
+  // chapter ends — the end date must match CHAPTERS["Ascension Age"].endDate.
+  // Testnet bypasses the start date so testers can verify ahead of the cutover.
+  ASCENSION_AGE_VIP_EXPANSION: {
+    start: new Date("2026-08-10T00:00:00Z"),
+    end: new Date("2026-11-02T00:00:00Z"),
+  },
 } satisfies Record<string, TimeBasedFeatureWindow>;
 
 /** All time-based flags receive the full window; start-only helpers ignore `end`. */
@@ -115,6 +123,7 @@ export const TIME_BASED_FEATURE_FLAGS: Record<
   COLORS_2026_EVENT_FLAG: betaTimePeriodFeatureFlag,
   // Testnet-only bypass before the date (not beta), so live testers can reach A2.
   SPOOKY_ASCENSION: timePeriodFeatureFlag,
+  ASCENSION_AGE_VIP_EXPANSION: timePeriodFeatureFlag,
 };
 
 /**
@@ -150,11 +159,19 @@ const FEATURE_FLAGS = {
   // Permanent Feature Flags
   ADMIN_DASHBOARDS: usernameFeatureFlag,
   AIRDROP_PLAYER: adminFeatureFlag,
+
+  // Shows the admin "Create / End Giveaway" controls on the town-hall giveaway
+  // board. The server enforces the real allowlist (GIVEAWAY_ADMIN_FARM_IDS), so
+  // this only gates the UI. Open to everyone in local development.
+  GIVEAWAY_ADMIN: (game: GameState) =>
+    import.meta.env.DEV || usernameFeatureFlag(game) || adminFeatureFlag(game),
   STREAMER_HAT: (game) =>
     (game.wardrobe["Streamer Hat"] ?? 0) > 0 || testnetFeatureFlag(),
 
   // Temporary Feature Flags
   FACE_RECOGNITION_TEST: betaFeatureFlag,
+  // The developer-options button that forces a captcha on your own farm
+  TRIGGER_CAPTCHA: betaFeatureFlag,
   LEDGER: testnetLocalStorageFeatureFlag("ledger"),
 
   LEAGUES: () => false,
@@ -190,6 +207,12 @@ const FEATURE_FLAGS = {
   // Beta testers can grab a Yakkamon pre-registration code before the level
   // tiers open to everyone else. The server enforces the same rule.
   YAKKAMON_BETA_ACCESS: betaFeatureFlag,
+
+  // Surfaces the 3 flowers most recently gifted to each NPC as a quick-pick
+  // shortlist in the gift flow, with no manual favoriting step. Client-side
+  // only (localStorage), but still gated behind beta access while the UX is
+  // validated.
+  RECENT_GIFT_FLOWERS: betaFeatureFlag,
 } satisfies Record<string, FeatureFlag>;
 
 export type FeatureName = keyof typeof FEATURE_FLAGS;
@@ -197,3 +220,13 @@ export type FeatureName = keyof typeof FEATURE_FLAGS;
 export const hasFeatureAccess = (game: GameState, featureName: FeatureName) => {
   return FEATURE_FLAGS[featureName](game);
 };
+
+/**
+ * The feature names currently gated behind `betaFeatureFlag` (Beta Pass /
+ * testnet). Derived from FEATURE_FLAGS by identity so this list can't drift
+ * from the flags it's reporting on - a feature only needs to be flagged with
+ * betaFeatureFlag once to show up here, nothing else to maintain.
+ */
+export const BETA_FEATURE_NAMES = (
+  Object.keys(FEATURE_FLAGS) as FeatureName[]
+).filter((name) => FEATURE_FLAGS[name] === betaFeatureFlag);

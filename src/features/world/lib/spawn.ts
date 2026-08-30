@@ -182,4 +182,44 @@ export const SPAWNS: () => SpawnLocation = () => ({
       y: 290,
     },
   },
+  // Giveaway race: left-hand side of the run.json map, in the middle 8-tile
+  // lane (the top and bottom 8 rows are trees).
+  giveaway_race: {
+    default: {
+      x: 32,
+      y: 192,
+    },
+  },
+  // Log Chop: centre of the woodlands map — trees are scattered around here.
+  giveaway_chop: {
+    default: {
+      x: 400,
+      y: 208,
+    },
+  },
+  // Jumper: everyone starts on the same base line and climbs straight up from
+  // here (lower on the map so there's headroom above to rise into).
+  giveaway_jump: {
+    default: {
+      x: 400,
+      y: 340,
+    },
+  },
+  // Trivia: shared centre — the four answer columns fan out either side, and the
+  // players cluster just above this line.
+  giveaway_trivia: {
+    default: {
+      x: 400,
+      y: 240,
+    },
+  },
+  // Pumpkin Pop: you stand in the middle of the patch and the other growers'
+  // plots are laid out in a grid around you, so there needs to be room on all
+  // four sides.
+  giveaway_pop: {
+    default: {
+      x: 400,
+      y: 208,
+    },
+  },
 });

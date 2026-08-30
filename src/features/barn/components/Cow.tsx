@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { GRID_WIDTH_PX, PIXEL_SCALE } from "features/game/lib/constants";
 import type { MachineState } from "features/game/lib/gameMachine";
 import { Context } from "features/game/GameProvider";
@@ -15,6 +15,7 @@ import {
   getAnimalLevel,
   getBoostedFoodQuantity,
   isAnimalFood,
+  resolveAnimal,
 } from "features/game/lib/animals";
 import { SUNNYSIDE } from "assets/sunnyside";
 import classNames from "classnames";
@@ -44,14 +45,14 @@ import {
 import { getAnimalXP } from "features/game/events/landExpansion/loveAnimal";
 import { isAnimalFeedable } from "features/game/events/landExpansion/buyAnimal";
 import { MutantAnimalModal } from "features/farming/animals/components/MutantAnimalModal";
-import { isCollectibleBuilt } from "features/game/lib/collectibleBuilt";
+import { MutantSparkles } from "features/farming/animals/components/MutantSparkles";
+import { isAnimalCoveredByGoldenAsset } from "features/game/events/landExpansion/feedAllAnimals";
 import { isWearableActive } from "features/game/lib/wearables";
 import { Modal } from "components/ui/Modal";
 import { CloseButtonPanel } from "features/game/components/CloseablePanel";
 import { OuterPanel } from "components/ui/Panel";
 import { SleepingAnimalModal } from "./SleepingAnimalModal";
 import { LockedAnimalModal } from "./LockedAnimalModal";
-import glow from "public/world/glow.png";
 
 export const ANIMAL_EMOTION_ICONS: Record<
   Exclude<TState["value"], "idle" | "needsLove" | "initial" | "sick">,
@@ -104,8 +105,12 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
 }) => {
   const { gameService, selectedItem, shortcutItem } = useContext(Context);
 
-  const cow = useSelector(gameService, _cow(id));
+  const storedCow = useSelector(gameService, _cow(id));
   const game = useSelector(gameService, _game);
+  // The animal machine has no access to game state, so every consumer below —
+  // the machine included — is handed the animal with its live windowed wake time
+  // substituted in. Read-only: nothing here writes an animal back.
+  const cow = useMemo(() => resolveAnimal(storedCow, game), [storedCow, game]);
   const cowService = useInterpret(animalMachine, {
     context: {
       animal: cow,
@@ -229,9 +234,9 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
     animal: cow,
   });
 
-  const hasGoldenCow = isCollectibleBuilt({
-    name: "Golden Cow",
-    game,
+  const hasGoldenCow = isAnimalCoveredByGoldenAsset({
+    state: game,
+    animalType: "Cow",
   });
 
   const hasOracleSyringeEquipped = isWearableActive({
@@ -252,7 +257,13 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
     setShowFeedXP(true);
     setTimeout(() => setShowFeedXP(false), 700);
 
-    const updatedCow = updatedState.context.state.barn.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedCow = resolveAnimal(
+      updatedState.context.state.barn.animals[id],
+      updatedState.context.state,
+    );
 
     cowService.send({
       type: "FEED",
@@ -283,7 +294,13 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
     setShowLoveItem(item as LoveAnimalItem);
     setTimeout(() => setShowLoveItem(undefined), 700);
 
-    const updatedCow = updatedState.context.state.barn.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedCow = resolveAnimal(
+      updatedState.context.state.barn.animals[id],
+      updatedState.context.state,
+    );
 
     cowService.send({
       type: "LOVE",
@@ -300,7 +317,13 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
       id: cow.id,
     });
 
-    const updatedCow = updatedState.context.state.barn.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedCow = resolveAnimal(
+      updatedState.context.state.barn.animals[id],
+      updatedState.context.state,
+    );
 
     cowService.send({
       type: "CLAIM_PRODUCE",
@@ -316,7 +339,13 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
       id: cow.id,
     });
 
-    const updatedCow = updatedState.context.state.barn.animals[id];
+    // Resolve before handing it to the machine: the raw record carries the
+    // stale cached `awakeAt`, and the machine's sleep guard has no game state
+    // of its own to re-derive from.
+    const updatedCow = resolveAnimal(
+      updatedState.context.state.barn.animals[id],
+      updatedState.context.state,
+    );
 
     cowService.send({
       type: "CURE",
@@ -395,7 +424,12 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
 
     if (sick) return onSickClick();
 
-    if (needsLove) return onLoveClick();
+    if (needsLove) {
+      if (!hasGoldenCow) return onLoveClick();
+
+      handleShowDetails();
+      return;
+    }
 
     const hasBuffSelected = selectedItem && isAnimalFeedBuffItem(selectedItem);
 
@@ -520,7 +554,7 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
     return favFood;
   };
   const showRequestBubble =
-    sick || needsLove || (idle && !isLocked && !showDrops);
+    sick || (needsLove && !hasGoldenCow) || (idle && !isLocked && !showDrops);
 
   if (cowMachineState === "initial") return null;
 
@@ -546,22 +580,6 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
           onContinue={() => {
             setShowMutantAnimalModal(false);
             onReadyClick();
-          }}
-        />
-      )}
-
-      {/* Upcoming Mutant Sign */}
-      {mutantName && (
-        <img
-          src={glow}
-          className="absolute animate-pulsate pointer-events-none"
-          style={{
-            bottom: "-28px",
-            left: "-27.5px",
-            width: "165%",
-            height: "165%",
-            maxWidth: `${GRID_WIDTH_PX * 40}px`,
-            maxHeight: `${GRID_WIDTH_PX * 40}px`,
           }}
         />
       )}
@@ -595,6 +613,8 @@ export const Cow: React.FC<{ id: string; disabled: boolean }> = ({
               "absolute ml-[1px] mt-[2px] top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2",
             )}
           />
+          {/* Upcoming Mutant Sign */}
+          {mutantName && <MutantSparkles />}
           {/* Emotion */}
           {!idle && !needsLove && !sick && (
             <img

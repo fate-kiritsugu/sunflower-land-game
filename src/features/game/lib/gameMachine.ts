@@ -75,6 +75,11 @@ import type { RaffleSnapshotWinner } from "features/world/ui/chapterRaffles/acti
 import { onboardingAnalytics } from "lib/onboardingAnalytics";
 import { gameAnalytics } from "lib/gameAnalytics";
 import { mfIdentify, mfSetUser, mfTrack } from "lib/moonforgeAnalytics";
+import {
+  hasCompletedLoginStep,
+  markLoginStepCompleted,
+  trackTutorialStep,
+} from "lib/moonforgeTutorial";
 import { portal } from "features/world/ui/community/actions/portal";
 
 import { CONFIG } from "lib/config";
@@ -84,6 +89,7 @@ import {
 } from "../actions/sellMarketResource";
 import { setCachedMarketPrices } from "features/world/ui/market/lib/marketCache";
 import { OFFLINE_FARM } from "./landData";
+import { mergeLocalVisitProgress } from "./mergeLocalVisitProgress";
 import { isValidRedirect } from "features/portal/lib/portalUtil";
 import {
   type Effect,
@@ -108,6 +114,7 @@ import {
   getActiveCalendarEvent,
   type SeasonalEventName,
 } from "../types/calendar";
+import { hasAcknowledgedTcs } from "../events/landExpansion/acknowledgeTcs";
 import { getConnection, getChainId } from "@wagmi/core";
 import { config } from "features/wallet/WalletProvider";
 import { depositFlower } from "lib/blockchain/DepositFlower";
@@ -207,11 +214,11 @@ export interface Context {
   visitorSocialDetails?: SocialDetails;
   hasHelpedPlayerToday?: boolean;
   totalHelpedToday?: number;
-  apiKey?: string;
   method?: "google" | "wallet" | "wechat" | "fsl";
   accountTradedAt?: string;
   onChainRaffleReward?: RaffleSnapshotWinner;
   banReason?: string;
+  banMessage?: string;
 }
 
 const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
@@ -393,6 +400,13 @@ const playingEventHandler = (
   const immediateSave = options?.immediateSave === true;
   return {
     [eventName]: [
+      // The API has flagged non-stop play (`captcha.required` on the game
+      // state) - block the event and send them into the captcha state.
+      {
+        target: "#captcha",
+        cond: (context: Context) =>
+          !context.visitorId && !!context.state.captcha?.required,
+      },
       {
         ...(immediateSave ? { target: "autosaving" as const } : {}),
         actions: assign(
@@ -481,28 +495,37 @@ function createPlacementEventHandlers(
   ].reduce(
     (events, eventName) => ({
       ...events,
-      [eventName]: {
-        ...(immediateSave ? { target: "autosaving" as const } : {}),
-        actions: assign((context: Context, event: PlacementEvent) => {
-          const createdAt = new Date();
+      [eventName]: [
+        // The API has flagged non-stop play (`captcha.required` on the game
+        // state) - block the event and send them into the captcha state.
+        {
+          target: "#captcha",
+          cond: (context: Context) =>
+            !context.visitorId && !!context.state.captcha?.required,
+        },
+        {
+          ...(immediateSave ? { target: "autosaving" as const } : {}),
+          actions: assign((context: Context, event: PlacementEvent) => {
+            const createdAt = new Date();
 
-          return {
-            state: processEvent({
-              state: context.state as GameState,
-              action: event,
-              farmId: context.farmId,
-              createdAt: createdAt.getTime(),
-            }) as GameState,
-            actions: [
-              ...context.actions,
-              {
-                ...event,
-                createdAt,
-              },
-            ],
-          };
-        }),
-      },
+            return {
+              state: processEvent({
+                state: context.state as GameState,
+                action: event,
+                farmId: context.farmId,
+                createdAt: createdAt.getTime(),
+              }) as GameState,
+              actions: [
+                ...context.actions,
+                {
+                  ...event,
+                  createdAt,
+                },
+              ],
+            };
+          }),
+        },
+      ],
     }),
     {},
   );
@@ -755,7 +778,10 @@ const VISIT_EFFECT_STATES = Object.values(STATE_MACHINE_VISIT_EFFECTS).reduce(
           const { visitedFarmState, ...rest } = data;
 
           return {
-            state: makeGame(visitedFarmState),
+            state: mergeLocalVisitProgress(
+              makeGame(visitedFarmState),
+              context.state,
+            ),
             data: rest,
             visitorState: gameState,
           };
@@ -826,6 +852,7 @@ export type BlockchainState = {
     | "portalling"
     | "introduction"
     | "welcome"
+    | "termsAndConditions"
     | "investigating"
     | "gems"
     | "communityCoin"
@@ -843,6 +870,7 @@ export type BlockchainState = {
     | "error"
     | "refreshing"
     | "swarming"
+    | "captcha"
     | "mailbox"
     | "transacting"
     | "depositing"
@@ -1091,10 +1119,10 @@ export function startGame(authContext: AuthContext) {
                 fslId: response.fslId,
                 oauthNonce: response.oauthNonce,
                 prices: response.prices,
-                apiKey: response.apiKey,
                 accountTradedAt: response.accountTradedAt,
                 totalHelpedToday: response.totalHelpedToday,
                 banReason: response.banReason,
+                banMessage: response.banMessage,
                 socialDetails: response.socialDetails,
               };
             },
@@ -1111,6 +1139,7 @@ export function startGame(authContext: AuthContext) {
                 },
                 actions: assign((_, event) => ({
                   banReason: event.data.banReason,
+                  banMessage: event.data.banMessage,
                 })),
               },
               {
@@ -1181,7 +1210,13 @@ export function startGame(authContext: AuthContext) {
               // 2. From a VISIT event passed back to the machine which will include a farmId in the payload
 
               if (!(event as VisitEvent).landId) {
-                farmId = Number(window.location.href.split("/").pop());
+                // Take the segment straight after `/visit/`, not the last one —
+                // the visit routes have sub-paths (`/visit/1/home`,
+                // `/visit/1/interior`, `/visit/1/level_one`), so popping the
+                // last segment yields the surface name and parses to NaN.
+                farmId = Number(
+                  window.location.href.split("/visit/").pop()?.split("/")[0],
+                );
               } else {
                 farmId = (event as VisitEvent).landId;
               }
@@ -1275,6 +1310,13 @@ export function startGame(authContext: AuthContext) {
         },
         notifying: {
           always: [
+            // The T&C gate must stay first - the player cannot see anything
+            // else until they have accepted the current terms.
+            {
+              target: "termsAndConditions",
+              cond: (context) =>
+                !hasAcknowledgedTcs({ game: context.state, now: Date.now() }),
+            },
             {
               target: "welcome",
               cond: (context) => {
@@ -2584,6 +2626,17 @@ export function startGame(authContext: AuthContext) {
           },
         },
 
+        termsAndConditions: {
+          on: {
+            "tcs.acknowledged": (GAME_EVENT_HANDLERS as any)[
+              "tcs.acknowledged"
+            ],
+            ACKNOWLEDGE: {
+              target: "notifying",
+            },
+          },
+        },
+
         investigating: {
           on: {
             "faceRecognition.started": {
@@ -2667,6 +2720,22 @@ export function startGame(authContext: AuthContext) {
           on: {
             REFRESH: {
               target: "loading",
+            },
+          },
+        },
+        captcha: {
+          id: "captcha",
+          on: {
+            // Posts the `captcha.succeeded` effect - the response's game
+            // state comes back with `captcha.required` cleared.
+            "captcha.succeeded": {
+              target: "solvingCaptcha",
+            },
+            // Offered by the lockout countdown screen so the player can look
+            // around while they wait. `captcha.required` is still set, so
+            // their next interaction lands straight back here.
+            CLOSE: {
+              target: "playing",
             },
           },
         },
@@ -2770,6 +2839,15 @@ export function startGame(authContext: AuthContext) {
       actions: {
         initialiseAnalytics: (context, event: any) => {
           if (!ART_MODE) {
+            // Identify first: any event emitted after this attaches to a
+            // durable id rather than the SDK's anonymous one, which
+            // regenerates per session and is what makes players look like
+            // one-day visitors.
+            mfIdentify(`account${event.data.analyticsId}`, {
+              farmId: context.farmId,
+            });
+            mfSetUser(`account${event.data.analyticsId}`);
+
             gameAnalytics.initialise({
               id: event.data.analyticsId,
             });
@@ -2777,10 +2855,20 @@ export function startGame(authContext: AuthContext) {
               id: context.farmId,
             });
             onboardingAnalytics.logEvent("login");
-            mfIdentify(`account${event.data.analyticsId}`, {
-              farmId: context.farmId,
-            });
-            mfSetUser(`account${event.data.analyticsId}`);
+
+            // `initialiseAnalytics` runs on every session load, including
+            // REFRESH, so an unguarded call emits `login` once per session
+            // rather than once per player. A tutorial funnel step with more
+            // events than players makes the drop-off between steps
+            // uninterpretable, so the milestone is marked per account and
+            // emitted only the first time.
+            //
+            // The marker is written before the event is sent: a failed write
+            // should suppress a duplicate, not license one.
+            if (!hasCompletedLoginStep(context.farmId)) {
+              markLoginStepCompleted(context.farmId);
+              trackTutorialStep("login");
+            }
           }
         },
         assignUrl: (context) => {
@@ -2818,7 +2906,6 @@ export function startGame(authContext: AuthContext) {
           socialDetails: (_, event) => event.data.socialDetails,
           oauthNonce: (_, event) => event.data.oauthNonce,
           prices: (_, event) => event.data.prices,
-          apiKey: (_, event) => event.data.apiKey,
           method: (_, event) => event.data.method,
           accountTradedAt: (_, event) => event.data.accountTradedAt,
           totalHelpedToday: (_, event) => event.data.totalHelpedToday,

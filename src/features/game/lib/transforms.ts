@@ -27,6 +27,7 @@ export function makeGame(farm: any): GameState {
     previousWardrobe: farm.previousWardrobe,
     competitions: farm.competitions,
     verified: farm.verified,
+    captcha: farm.captcha,
     stock: Object.keys(farm.stock).reduce(
       (items, item) => ({
         ...items,
@@ -152,5 +153,6 @@ export function makeGame(farm: any): GameState {
     saltFarm: farm.saltFarm ?? { level: 0, nodes: {} },
     sculptures: farm.sculptures,
     layouts: farm.layouts,
+    tcsAcknowledged: farm.tcsAcknowledged,
   };
 }

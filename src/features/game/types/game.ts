@@ -958,6 +958,13 @@ export type FruitPatch = {
 
 export type BuildingProduct = {
   name: CookableName | ProcessedResource;
+  /**
+   * Stable identity for the queue entry. Recipes used to be addressed by their
+   * `readyAt`, which stops working once that value is derived live from the boost
+   * windows (see `cookingReadiness`). Absent on recipes queued before this existed —
+   * callers fall back to matching on `readyAt` for those.
+   */
+  id?: string;
   readyAt: number;
   /**
    * @deprecated Use per-item quantity fields instead.
@@ -970,6 +977,14 @@ export type BuildingProduct = {
   skills?: Partial<Record<BumpkinRevampSkillName, boolean | number>>;
   timeRemaining?: number;
   startedAt?: number;
+  /**
+   * The recipe's un-boosted cook time with PERMANENT boosts (wearables, Desert
+   * Gnome, Fast Feasts/Frosted Cakes, building oil) already folded in. Present only
+   * on recipes queued under the speed-rate model; its absence selects the legacy
+   * baked timing, so the read path keys off this marker, NOT the `SPEED_BOOSTS`
+   * flag — matching every other activity.
+   */
+  baseDurationMs?: number;
   requirements?: Inventory;
 };
 
@@ -1969,9 +1984,23 @@ export type Animal = {
   createdAt: number;
   experience: number;
   asleepAt: number;
+  /**
+   * The animal's wake time. Under the speed-rate model (`baseDurationMs` set)
+   * this is a non-authoritative CACHE of the wake time projected at sleep — the
+   * live value is derived by `getAnimalReadyAt`, since a shrine placed or burned
+   * mid-sleep moves it. Legacy (unmarked) animals, and any animal woken
+   * instantly, carry the authoritative value here.
+   */
   awakeAt: number;
   lovedAt: number;
   item: LoveAnimalItem;
+  /**
+   * The sleep's un-boosted work with permanent boosts folded in. Present only on
+   * sleeps started under the speed-rate model; its absence selects the legacy
+   * baked `awakeAt` (the read path keys off the marker, NOT the flag). No
+   * `boostedTime` counterpart — animal sleep has no progress bar.
+   */
+  baseDurationMs?: number;
   multiplier?: number;
   reward?: Reward;
   feedBuff?: AnimalFeedBuff;
@@ -1994,6 +2023,16 @@ export type PetHouseBuilding = UpgradableBuilding & {
 export type Bank = {
   taxFreeSFL: number;
   withdrawnAmount: number;
+  /**
+   * How much of the player's FLOWER balance came from a deposit and has not
+   * been spent yet.
+   *
+   * Deposited FLOWER is never locked in the game - a player can always withdraw
+   * up to this amount without meeting the reputation requirement. Increases on
+   * deposit, decreases whenever FLOWER leaves the balance (spends, trades and
+   * withdrawals).
+   */
+  unlockedFlower?: number;
 };
 
 export type TemperateSeasonName = "spring" | "summer" | "autumn" | "winter";
@@ -2056,6 +2095,7 @@ export type BoostName =
 
 export type SpecialBoostName =
   | `${SeasonalEventName}`
+  | "Buckaroo"
   | "Power hour"
   | "VIP Access"
   | "Faction Pet"
@@ -2153,6 +2193,29 @@ export interface GameState {
   };
 
   verified?: boolean;
+
+  /**
+   * When the player last accepted the Terms & Conditions (epoch ms).
+   *
+   * Undefined for players who have never accepted them. Re-acceptance is
+   * forced once the acceptance is older than
+   * {@link TCS_ACKNOWLEDGEMENT_DURATION} - see the `termsAndConditions` state
+   * in `gameMachine`.
+   */
+  tcsAcknowledged?: number;
+
+  /**
+   * Anti-botting captcha progress. The API raises and lowers `required`.
+   * Per-game success/fail counts live in `farmActivity`.
+   */
+  captcha?: {
+    /** Whether the player must solve a captcha before continuing */
+    required?: boolean;
+    /** When the player last solved a captcha */
+    solvedAt?: number;
+    /** When the player last failed an attempt - drives the lockout */
+    failedAt?: number;
+  };
 
   gems: {
     history?: Record<string, { spent: number; coinsSpent?: number }>;
@@ -2358,7 +2421,11 @@ export interface GameState {
   desert: Desert;
 
   ban: {
-    status: "investigating" | "permanent" | "ok";
+    /**
+     * `lock` is a support hold. It blocks play like `investigating` does, but
+     * verifying socials or a face does not lift it - only support can.
+     */
+    status: "investigating" | "permanent" | "ok" | "lock";
     isSocialVerified?: boolean;
   };
 

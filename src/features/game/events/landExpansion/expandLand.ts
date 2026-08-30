@@ -6,7 +6,7 @@ import {
 import { getKeys } from "lib/object";
 import type { BoostName, GameState } from "features/game/types/game";
 import { onboardingAnalytics } from "lib/onboardingAnalytics";
-import { mfTrack } from "lib/moonforgeAnalytics";
+import { trackTutorialStep } from "lib/moonforgeTutorial";
 
 import {
   getExpansionRequirements,
@@ -19,7 +19,11 @@ import { ISLAND_MAX_EXPANSION } from "features/game/expansion/lib/expansionRequi
 import { produce } from "immer";
 import { trackFarmActivity } from "features/game/types/farmActivity";
 import { updateBoostUsed } from "features/game/types/updateBoostUsed";
-import { getExpansionCoinCostWithVip } from "features/game/lib/vipAccess";
+import {
+  EXPANSION_VIP_TIME_MULTIPLIER,
+  getExpansionCoinCostWithVip,
+  hasVipExpansionSpeedBoost,
+} from "features/game/lib/vipAccess";
 
 export type ExpandLandAction = {
   type: "land.expanded";
@@ -50,7 +54,10 @@ export function expandLand({ state, createdAt = Date.now() }: Options) {
 
     const bumpkin = game.bumpkin;
 
-    const { requirements, boostsUsed } = expansionRequirements({ game });
+    const { requirements, boostsUsed } = expansionRequirements({
+      game,
+      now: createdAt,
+    });
     if (!requirements) {
       throw new Error("No more land expansions available");
     }
@@ -115,7 +122,7 @@ export function expandLand({ state, createdAt = Date.now() }: Options) {
     // https://developers.google.com/analytics/devguides/collection/ga4/reference/events?client_type=gtag#tutorial_complete
     if (game.inventory["Basic Land"]?.eq(3)) {
       onboardingAnalytics.logEvent("tutorial_complete");
-      mfTrack("tutorial_step_completed", { step: "expand_to_3_land" });
+      trackTutorialStep("expand_to_3_land");
     }
 
     //developers.google.com/analytics/devguides/collection/ga4/reference/events?sjid=11955999175679069053-AP&client_type=gtag#level_up
@@ -139,15 +146,22 @@ export function expandLand({ state, createdAt = Date.now() }: Options) {
 
 export const expansionRequirements = ({
   game,
+  now = Date.now(),
 }: {
   game: GameState;
+  now?: number;
 }): {
   requirements: Requirements | undefined;
+  /** Build time before any time boost, for the struck-through original. */
+  baseTimeSeconds: number;
+  /** The subset of `boostsUsed` that shortened the build. */
+  timeBoostsUsed: { name: BoostName; value: string }[];
   boostsUsed: { name: BoostName; value: string }[];
 } => {
   const level = (game.inventory["Basic Land"]?.toNumber() ?? 0) + 1;
 
   const boostsUsed: { name: BoostName; value: string }[] = [];
+  const timeBoostsUsed: { name: BoostName; value: string }[] = [];
 
   const requirements = getExpansionRequirements({
     island: game.island.type,
@@ -156,7 +170,12 @@ export const expansionRequirements = ({
   });
 
   if (!requirements) {
-    return { requirements: undefined, boostsUsed };
+    return {
+      requirements: undefined,
+      baseTimeSeconds: 0,
+      timeBoostsUsed,
+      boostsUsed,
+    };
   }
 
   let resources = requirements.resources;
@@ -178,8 +197,24 @@ export const expansionRequirements = ({
   // -20% expansion time once the monument's cheers are complete
   if (isMonumentActive({ game, monument: "Ascension Monument" })) {
     seconds *= 0.8;
-    boostsUsed.push({ name: "Ascension Monument", value: "x0.8" });
+    timeBoostsUsed.push({ name: "Ascension Monument", value: "x0.8" });
   }
 
-  return { requirements: { ...requirements, resources, seconds }, boostsUsed };
+  // Ascension Age chapter perk: -10% expansion time for VIP holders
+  if (hasVipExpansionSpeedBoost({ game, now })) {
+    seconds = Math.round(seconds * EXPANSION_VIP_TIME_MULTIPLIER);
+    timeBoostsUsed.push({
+      name: "VIP Access",
+      value: `x${EXPANSION_VIP_TIME_MULTIPLIER}`,
+    });
+  }
+
+  boostsUsed.push(...timeBoostsUsed);
+
+  return {
+    requirements: { ...requirements, resources, seconds },
+    baseTimeSeconds: requirements.seconds,
+    timeBoostsUsed,
+    boostsUsed,
+  };
 };
