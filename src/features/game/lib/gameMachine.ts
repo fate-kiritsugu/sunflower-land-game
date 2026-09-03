@@ -107,9 +107,12 @@ import {
   type TransactionName,
 } from "../types/transactions";
 import { getKeys } from "lib/object";
-import { preloadHotNow } from "features/marketplace/components/MarketplaceHotNow";
 import { getLastTemperateSeasonStartedAt } from "./temperateSeason";
 import { hasLifetimeFarmerBanner, hasVipAccess } from "./vipAccess";
+import {
+  getWithdrawCooldownItems,
+  type WithdrawCooldowns,
+} from "./withdrawCooldown";
 import {
   getActiveCalendarEvent,
   type SeasonalEventName,
@@ -120,7 +123,7 @@ import { config } from "features/wallet/WalletProvider";
 import { depositFlower } from "lib/blockchain/DepositFlower";
 import type { NetworkOption } from "features/island/hud/components/deposit/DepositFlower";
 import { depositSFL } from "lib/blockchain/DepositSFL";
-import { hasFeatureAccess, isWaypointWalletDisabled } from "lib/flags";
+import { isWaypointWalletDisabled } from "lib/flags";
 import {
   isRoninWallet,
   getRoninWaypointPopupShown,
@@ -145,22 +148,6 @@ const getError = () => {
   return error;
 };
 
-const shouldShowLeagueResults = (context: Context) => {
-  // Don't show league results for visitors
-  if (context.visitorId !== undefined) {
-    return false;
-  }
-
-  const hasLeaguesAccess = hasFeatureAccess(context.state, "LEAGUES");
-  const currentLeagueStartDate =
-    context.state.prototypes?.leagues?.currentLeagueStartDate;
-
-  return (
-    hasLeaguesAccess &&
-    currentLeagueStartDate !== new Date().toISOString().split("T")[0]
-  );
-};
-
 export type PastAction = GameEvent & {
   createdAt: Date;
 };
@@ -172,6 +159,9 @@ export interface Context {
   actions: PastAction[];
   sessionId?: string;
   errorCode?: ErrorCode;
+  // Detail the API attached to the last error, e.g. `availableAt` on a
+  // social account cooldown. Set alongside `errorCode`, cleared with it.
+  errorDetails?: Record<string, unknown>;
   transactionId?: string;
   fingerprint?: string;
   goblinSwarm?: Date;
@@ -216,6 +206,14 @@ export interface Context {
   totalHelpedToday?: number;
   method?: "google" | "wallet" | "wechat" | "fsl";
   accountTradedAt?: string;
+  /**
+   * Every item the API has refused to withdraw under the marketplace
+   * cooldown, merged across attempts, so the withdraw screens can mark them.
+   * Purchase history isn't in game state, so this only fills in on failure.
+   */
+  withdrawCooldowns?: WithdrawCooldowns;
+  /** The blocked items from the most recent rejection, for the error panel. */
+  blockedWithdrawal?: WithdrawCooldowns;
   onChainRaffleReward?: RaffleSnapshotWinner;
   banReason?: string;
   banMessage?: string;
@@ -337,6 +335,18 @@ export type UpdateUsernameEvent = {
   username: string;
 };
 
+/**
+ * Pushes the gameState returned by the `layout.applied` effect into the
+ * machine. Layout effects are posted outside the machine (they must work from
+ * `landscaping`, which has no effect states — see actions/layoutEffects.ts),
+ * so this assign is the only machine wiring they need. Pending actions are
+ * always flushed before the effect is posted, so nothing is replayed on top.
+ */
+export type LayoutAppliedEvent = {
+  type: "LAYOUT_APPLIED";
+  state: GameState;
+};
+
 type PostEffectEvent = {
   type: "POST_EFFECT";
   effect: Effect;
@@ -376,6 +386,7 @@ export type BlockchainEvent =
   | DepositEvent
   | UpdateEvent
   | UpdateUsernameEvent
+  | LayoutAppliedEvent
   | PostEffectEvent
   | { type: "EXPAND" }
   | { type: "SAVE_SUCCESS" }
@@ -898,7 +909,6 @@ export type BlockchainState = {
     | "randomising"
     | "competition"
     | "jinAirdrop"
-    | "leagueResults"
     | "linkWallet"
     | "starterOffer"
     | StateMachineStateName
@@ -1077,10 +1087,6 @@ export function startGame(authContext: AuthContext) {
               }),
             },
           ],
-          entry: () => {
-            if (CONFIG.API_URL)
-              preloadHotNow(authContext.user.rawToken as string);
-          },
           invoke: {
             src: async (context) => {
               const fingerprint = "X";
@@ -1617,10 +1623,6 @@ export function startGame(authContext: AuthContext) {
                 (context.state.inventory["Jin"] ?? new Decimal(0)).lt(1),
             },
             {
-              target: "leagueResults",
-              cond: shouldShowLeagueResults,
-            },
-            {
               target: "playing",
             },
           ],
@@ -1882,16 +1884,6 @@ export function startGame(authContext: AuthContext) {
             },
           },
         },
-        leagueResults: {
-          on: {
-            "leagues.updated": {
-              target: STATE_MACHINE_EFFECTS["leagues.updated"],
-            },
-            CLOSE: {
-              target: "playing",
-            },
-          },
-        },
         playing: {
           id: "playing",
           entry: "clearTransactionId",
@@ -1905,6 +1897,11 @@ export function startGame(authContext: AuthContext) {
                   ...context.state,
                   username: event.username,
                 },
+              })),
+            },
+            LAYOUT_APPLIED: {
+              actions: assign((_, event) => ({
+                state: (event as LayoutAppliedEvent).state,
               })),
             },
             SAVE: {
@@ -2075,13 +2072,6 @@ export function startGame(authContext: AuthContext) {
                 ),
               },
               {
-                target: "leagueResults",
-                cond: shouldShowLeagueResults,
-                actions: assign((context: Context, event) =>
-                  handleSuccessfulSave(context, event),
-                ),
-              },
-              {
                 target: "visiting",
                 cond: (context, _) => !!context.visitorId,
                 actions: assign((context: Context, event) =>
@@ -2150,6 +2140,12 @@ export function startGame(authContext: AuthContext) {
                 actions: assign((_) => ({
                   actions: [],
                 })),
+              },
+              {
+                target: "error",
+                cond: (_, event: any) =>
+                  event.data?.message === ERRORS.WITHDRAW_MARKETPLACE_COOLDOWN,
+                actions: ["assignErrorMessage", "assignWithdrawCooldowns"],
               },
               {
                 target: "error",
@@ -2771,6 +2767,11 @@ export function startGame(authContext: AuthContext) {
           },
           on: {
             ...LANDSCAPING_PLACEMENT_EVENT_HANDLERS,
+            LAYOUT_APPLIED: {
+              actions: assign((_, event) => ({
+                state: (event as LayoutAppliedEvent).state,
+              })),
+            },
             SAVE: {
               actions: send(
                 (context) =>
@@ -2885,7 +2886,18 @@ export function startGame(authContext: AuthContext) {
         },
         assignErrorMessage: assign<Context, any>({
           errorCode: (_context, event) => event.data.message,
+          // Only `EffectError` carries `data`; everything else clears it so a
+          // stale `availableAt` never leaks into an unrelated error screen.
+          errorDetails: (_context, event) => event.data?.data ?? undefined,
           actions: [],
+        }),
+        assignWithdrawCooldowns: assign<Context, any>({
+          withdrawCooldowns: (context, event) => ({
+            ...context.withdrawCooldowns,
+            ...getWithdrawCooldownItems(event.data),
+          }),
+          blockedWithdrawal: (_context, event) =>
+            getWithdrawCooldownItems(event.data),
         }),
         assignGame: assign<Context, any>({
           farmId: (_, event) => event.data.farmId,

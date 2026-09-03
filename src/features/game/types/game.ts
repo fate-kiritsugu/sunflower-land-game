@@ -123,6 +123,7 @@ import type { TwitterPost, TwitterPostName } from "./social";
 import type { NetworkName } from "../events/landExpansion/updateNetwork";
 import type { RewardBoxes, RewardBoxName } from "./rewardBoxes";
 import type {
+  FloatingIslandGameName,
   FloatingIslandShop,
   FloatingShopItemName,
 } from "./floatingIsland";
@@ -134,7 +135,6 @@ import type { ClutterName } from "./clutter";
 import type { PetName, PetResourceName, Pets } from "./pets";
 import type { RockName } from "./resources";
 import type { PetShopItemName } from "./petShop";
-import type { League } from "features/leagues/leagues";
 import type { Buff, BuffName } from "./buffs";
 import type {
   CrustaceanChum,
@@ -1022,6 +1022,13 @@ export type PlacedItem = {
    * calendar event. Stays placed/owned but grants no protection until renewed.
    */
   used?: boolean;
+  /**
+   * Extra active time (ms) bought on top of a temporary collectible's base
+   * cooldown via `collectible.extended`. Banked on the placement rather than
+   * shifting `createdAt`, so the boost window simply runs longer instead of
+   * losing the time already served. Cleared when the placement is renewed.
+   */
+  extendedMs?: number;
 };
 
 export type ShakeItem = PlacedItem & { shakenAt?: number };
@@ -1118,19 +1125,19 @@ export type LayoutFlippablePlacement = LayoutCoordinates & {
  * Items are keyed by `id` so applying a layout repositions the player's
  * existing items. Collectibles/buildings mirror the live `name -> PlacedItem[]`
  * buckets (capturing `flipped`); resources mirror the live `Record<id, {...}>`
- * buckets whose coordinates live as top-level x/y. See `saveLayout`/`applyLayout`.
+ * buckets whose coordinates live as top-level x/y. Stored server-side in the
+ * `layouts` collection; created/applied via the layout effects
+ * (actions/layoutEffects.ts).
  */
 export type SavedLayout = {
+  /**
+   * Stable server-assigned id (uuid). Layouts are addressed by id on the
+   * wire — array indices would race across async effect round-trips.
+   */
+  id: string;
   name: string;
   createdAt: number;
   updatedAt: number;
-  /**
-   * Marks the auto-managed "Ascension Layout" captured when the player first
-   * ascends (volcano→swamp) and re-applied on later ascensions. It is protected:
-   * the player cannot delete, rename, or overwrite it, and it does not count
-   * against the manual `MAX_SAVED_LAYOUTS` limit.
-   */
-  auto?: boolean;
   collectibles: Partial<Record<CollectibleName, LayoutPlacement[]>>;
   buildings: Partial<Record<BuildingName, LayoutPlacement[]>>;
   resources: {
@@ -2456,13 +2463,6 @@ export interface GameState {
   };
   season: Season;
   lavaPits: Record<string, LavaPit>;
-  /**
-   * Saved snapshots of the farm arrangement. The live farm is the "current"
-   * layout; these are the saved alternatives the player can load onto it.
-   * Optional so legacy saves (which never had this field) need no migration.
-   * Capped at {@link MAX_SAVED_LAYOUTS}.
-   */
-  layouts?: SavedLayout[];
   nfts?: Partial<Record<Chain, NFT>>;
 
   faceRecognition?: {
@@ -2521,6 +2521,19 @@ export interface GameState {
     shop: FloatingIslandShop;
     boughtAt?: Partial<Record<FloatingShopItemName, number>>;
     petalPuzzleSolvedAt?: number;
+    /**
+     * Love Charm prizes claimed from the daily island puzzles. Only the
+     * current UTC day's claims are kept - used to enforce the daily Love
+     * Charm cap and the maximum number of claims per day.
+     */
+    prizeClaims?: {
+      claimedAt: number;
+      amount: number;
+      /** Which puzzle paid out - lets the client enforce per-game rules. */
+      game?: FloatingIslandGameName;
+      /** The puzzle's round - each `{ game, roundId }` is claimable once. */
+      roundId?: number;
+    }[];
   };
   megastore?: {
     boughtAt: Partial<Record<ChapterTierItemName, number>>;
@@ -2538,9 +2551,6 @@ export interface GameState {
   socialFarming: SocialFarming;
   pets?: Pets;
 
-  prototypes?: {
-    leagues?: League;
-  };
   saltFarm: SaltFarm;
   sculptures?: Partial<
     Record<SculptureName, { level: number; upgradedAt?: number }>

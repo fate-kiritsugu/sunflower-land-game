@@ -24,6 +24,9 @@ type EffectName =
   | "sfl.depositStarted"
   | "telegram.linked"
   | "telegram.joined"
+  | "telegram.unlinked"
+  | "discord.unlinked"
+  | "twitter.unlinked"
   | "twitter.followed"
   | "twitter.posted"
   | "twitter.showcased"
@@ -62,7 +65,6 @@ type EffectName =
   | "auctionRaffle.entered"
   | "auctionRaffle.claimed"
   | "marketplace.buyBulkResources"
-  | "leagues.updated"
   | "liquidity.registered"
   | "appInstall.generate"
   | "farmHand.unlocked"
@@ -72,7 +74,11 @@ type EffectName =
   | "giveaway.progressed"
   | "giveaway.submitted"
   | "giveaway.ended"
-  | "giveaway.claimed";
+  | "giveaway.claimed"
+  | "layout.created"
+  | "layout.edited"
+  | "layout.deleted"
+  | "layout.applied";
 
 type VisitEffectName = "farm.helped" | "farm.cheered" | "farm.followed";
 
@@ -92,6 +98,12 @@ export type StateMachineEffectName = Exclude<
   | "liquidity.registered"
   // Fired inline from the captcha modal - no machine state
   | "captcha.failed"
+  // Posted directly so they work from the `landscaping` state (which has no
+  // effect states) - see actions/layoutEffects.ts
+  | "layout.created"
+  | "layout.edited"
+  | "layout.deleted"
+  | "layout.applied"
 >;
 
 export type StateMachineVisitEffectName = VisitEffectName;
@@ -112,6 +124,7 @@ export type StateMachineStateName =
   | "depositingSFL"
   | "linkingTelegram"
   | "joiningTelegram"
+  | "unlinkingSocial"
   | "followingTwitter"
   | "postingTwitter"
   | "showcasingTwitter"
@@ -140,7 +153,6 @@ export type StateMachineStateName =
   | "enteringAuctionRaffle"
   | "claimingAuctionRaffle"
   | "marketplaceBuyingBulkResources"
-  | "updatingLeagues"
   | "generatingAppInstall"
   | "pickingUpWaterTrap"
   | "resettingPetRequests"
@@ -183,6 +195,11 @@ export const STATE_MACHINE_EFFECTS: Record<
   "sfl.depositStarted": "depositingSFL",
   "telegram.linked": "linkingTelegram",
   "telegram.joined": "joiningTelegram",
+  // One state for all three providers - the UI reads the provider back
+  // from the response (`data.provider`).
+  "telegram.unlinked": "unlinkingSocial",
+  "discord.unlinked": "unlinkingSocial",
+  "twitter.unlinked": "unlinkingSocial",
   "twitter.followed": "followingTwitter",
   "twitter.posted": "postingTwitter",
   "twitter.showcased": "showcasingTwitter",
@@ -213,7 +230,6 @@ export const STATE_MACHINE_EFFECTS: Record<
   "auctionRaffle.entered": "enteringAuctionRaffle",
   "auctionRaffle.claimed": "claimingAuctionRaffle",
   "marketplace.buyBulkResources": "marketplaceBuyingBulkResources",
-  "leagues.updated": "updatingLeagues",
   "appInstall.generate": "generatingAppInstall",
   "economies.exchanged": "exchangingEconomy",
   "giveaway.created": "creatingGiveaway",
@@ -236,6 +252,41 @@ export const STATE_MACHINE_VISIT_EFFECTS: Record<
 export interface Effect {
   type: EffectName;
   [key: string]: any;
+}
+
+/**
+ * A 400 from the event endpoint. `message` is the backend's errorCode;
+ * `data` is whatever detail it attached (most codes send none, e.g.
+ * `availableAt` for social account cooldowns).
+ */
+export type EffectError = Error & { data?: unknown };
+
+export const createEffectError = (code: string, data?: unknown): EffectError =>
+  Object.assign(new Error(code), data === undefined ? {} : { data });
+
+/**
+ * Keys an effect deletes from the game state. The response is pruned to
+ * the keys that changed and merged over the client state, so a key the
+ * server *removed* would otherwise survive the merge.
+ */
+const REMOVED_STATE_KEYS: Partial<Record<EffectName, (keyof GameState)[]>> = {
+  "telegram.unlinked": ["telegram"],
+  "discord.unlinked": ["discord"],
+  "twitter.unlinked": ["twitter"],
+};
+
+export function stripRemovedStateKeys(
+  effect: Effect,
+  gameState: GameState,
+): GameState {
+  const keys = REMOVED_STATE_KEYS[effect.type];
+  if (!keys?.length) return gameState;
+
+  const stripped = { ...gameState };
+  for (const key of keys) {
+    delete stripped[key];
+  }
+  return stripped;
 }
 
 type Request = {
@@ -276,9 +327,16 @@ export async function postEffect(
   }
 
   if (response.status === 400) {
-    const data = await response.json().catch(() => null);
+    const body = await response.json().catch(() => null);
 
-    throw new Error(data?.errorCode ?? ERRORS.EFFECT_SERVER_ERROR);
+    // Some rejections (e.g. WITHDRAW_MARKETPLACE_COOLDOWN, the SOCIAL_*
+    // cooldowns) come with detail the UI needs. The message stays the bare
+    // code - call sites compare on it - and the payload rides alongside on
+    // the error object.
+    throw createEffectError(
+      body?.errorCode ?? ERRORS.EFFECT_SERVER_ERROR,
+      body?.data,
+    );
   }
 
   if (response.status !== 200 || !response.ok) {
@@ -296,7 +354,7 @@ export async function postEffect(
     : (gameState as GameState);
 
   return {
-    gameState: makeGame(mergedGameState),
+    gameState: makeGame(stripRemovedStateKeys(request.effect, mergedGameState)),
     data,
   };
 }
