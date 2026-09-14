@@ -28,7 +28,6 @@ import { canChop } from "./chop";
 import { canDrillOilReserve } from "./drillOilReserve";
 import { isReadyToHarvest } from "./harvest";
 import { getCurrentCookingItem, recalculateQueue } from "./cancelQueuedRecipe";
-import type { AOEItemName } from "features/game/expansion/placeable/lib/collisionDetection";
 import { FLOWER_SEEDS, FLOWERS } from "features/game/types/flowers";
 import { updateBeehives } from "features/game/lib/updateBeehives";
 import { isWearableActive } from "features/game/lib/wearables";
@@ -60,11 +59,29 @@ function useInstantGrowth({
   aoe: AOE;
   createdAt?: number;
 }): Record<string, CropPlot> {
-  // Set each plot's plantedAt to 1 (making it grow instantly)
+  // Make every growing crop ready, and leave it with a grow duration of 0.
+  // `getCropGrowDurationMs` is what gates the crop-yield AOEs (Laurie, Sir
+  // Goldensnout, Gnome, ...): they only re-arm once a full grow duration has
+  // passed since their last use. An instant-grown crop is harvested early by
+  // design, so unless the duration collapses to 0 the harvest silently loses
+  // every AOE bonus.
   getKeys(crops).forEach((plot) => {
     const plantedCrop = crops[plot].crop;
-    if (plantedCrop) {
+    if (!plantedCrop) return;
+
+    if (plantedCrop.baseDurationMs !== undefined) {
+      // Windowed (speed-rate model): zero the remaining work AND re-anchor the
+      // start to now, so readyAt resolves to `createdAt` exactly and the grow
+      // duration is 0 (mirrors usePetalBlessed / useGreenhouseGuru).
+      // Back-dating plantedAt instead would re-price the grow against past
+      // boost windows and leave the duration at the FULL base grow time.
+      plantedCrop.baseDurationMs = 0;
+      plantedCrop.plantedAt = createdAt;
+    } else {
+      // Legacy: back-date to make it ready, and bank the full grow time as
+      // boostedTime so the duration (base - boosted) is likewise 0.
       plantedCrop.plantedAt = 1;
+      plantedCrop.boostedTime = CROPS[plantedCrop.name].harvestSeconds * 1000;
     }
   });
 
@@ -73,24 +90,6 @@ function useInstantGrowth({
     if (!dyObject) return;
     getKeys(dyObject).forEach((dy) => {
       dyObject[dy] = createdAt;
-    });
-  });
-
-  const cropYieldAOEItems: AOEItemName[] = [
-    "Scary Mike",
-    "Laurie the Chuckle Crow",
-    "Gnome",
-    "Queen Cornelia",
-    "Sir Goldensnout",
-  ];
-
-  cropYieldAOEItems.forEach((item) => {
-    const aoeItem = aoe[item] ?? {};
-    Object.values(aoeItem).forEach((dyObject) => {
-      if (!dyObject) return;
-      getKeys(dyObject).forEach((dy) => {
-        dyObject[dy] = 1;
-      });
     });
   });
 
@@ -216,6 +215,11 @@ function useInstantGratification({
     // undo the instant completion (mirrors the oil reserve above / instaGrowFlower).
     if (queue[recipeIndex].baseDurationMs !== undefined) {
       queue[recipeIndex].baseDurationMs = 0;
+      // Complete at activation, not at the old start: `recalculateQueue` splits
+      // ready/upcoming on the DERIVED chain, and a zero-work recipe derives
+      // `readyAt = startedAt`, so a stale start would drag every chained recipe
+      // behind this one into the ready half.
+      queue[recipeIndex].startedAt = createdAt;
     }
 
     building.crafting = recalculateQueue({

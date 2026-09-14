@@ -190,27 +190,14 @@ const FEATURE_FLAGS = {
 
   BOOSTS_DISPLAY: betaFeatureFlag,
 
-  // Saving & re-applying named farm layouts in landscaping mode.
-  SAVED_LAYOUTS: betaFeatureFlag,
-
   // Speed-rate (Clash-of-Clans potion) model for time-based boosts — starting
   // with the Sparrow Shrine on crops. When on, planting stores the new
   // baseDurationMs + true plantedAt model; when off, boosts stay discount-at-start.
   SPEED_BOOSTS: betaFeatureFlag,
 
-  // Bulk Mixer tab in the feeder machine: mix the missing feed for every
-  // waiting animal at once. Beta-pass / testnet only until it ships.
-  BULK_MIXER: betaFeatureFlag,
-
   // Beta testers can grab a Yakkamon pre-registration code before the level
   // tiers open to everyone else. The server enforces the same rule.
   YAKKAMON_BETA_ACCESS: betaFeatureFlag,
-
-  // Surfaces the 3 flowers most recently gifted to each NPC as a quick-pick
-  // shortlist in the gift flow, with no manual favoriting step. Client-side
-  // only (localStorage), but still gated behind beta access while the UX is
-  // validated.
-  RECENT_GIFT_FLOWERS: betaFeatureFlag,
 } satisfies Record<string, FeatureFlag>;
 
 export type FeatureName = keyof typeof FEATURE_FLAGS;

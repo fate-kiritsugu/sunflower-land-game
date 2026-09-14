@@ -12,6 +12,8 @@ import type { AnimalType } from "../types/animals";
 import {
   ANIMAL_BOOST_SPEED,
   COOKING_BOOST_SPEED,
+  CRAFTING_BOOST_SPEED,
+  CROP_MACHINE_BOOST_SPEED,
   CROP_PLOT_BOOST_SPEED,
   FLOWER_BOOST_SPEED,
   FRUIT_BOOST_SPEED,
@@ -152,8 +154,32 @@ const cooking = (game: GameState, at: number): BoostContribution[] => [
   collectible(game, "Boar Shrine", COOKING_BOOST_SPEED["Boar Shrine"]),
 ];
 
+/**
+ * Crafting's windowed boosts — mirrors `getCraftingBoostWindows`, in the same
+ * order. Fox Shrine is a MIXED boost: only its craft-TIME half is a window, so
+ * only that half is named here; its 10% instant-craft proc is a discrete roll and
+ * stays in `boostsUsed`.
+ */
+const crafting = (game: GameState, at: number): BoostContribution[] => [
+  totems(game, CRAFTING_BOOST_SPEED["Super Totem"], at),
+  collectible(game, "Fox Shrine", CRAFTING_BOOST_SPEED["Fox Shrine"]),
+];
+
 const oil = (game: GameState, at: number): BoostContribution[] => [
   collectible(game, "Stag Shrine", OIL_BOOST_SPEED["Stag Shrine"]),
+];
+
+/**
+ * The crop machine's windowed boosts — mirrors `getCropMachineBoostWindows`:
+ * the Tortoise Shrine alone (no totems, no hourglasses). Only its crop-machine
+ * half is named here; the greenhouse half is listed by `greenhouse` above.
+ */
+const cropMachine = (game: GameState): BoostContribution[] => [
+  collectible(
+    game,
+    "Tortoise Shrine",
+    CROP_MACHINE_BOOST_SPEED["Tortoise Shrine"],
+  ),
 ];
 
 const greenhouse = (
@@ -251,6 +277,25 @@ export function getCookingBoostContributions(
   if (!hasFeatureAccess(game, "SPEED_BOOSTS")) return [];
 
   return cooking(game, at);
+}
+
+/** The named boosts that would speed up a craft — mirrors getCraftingBoostWindows. */
+export function getCraftingBoostContributions(
+  game: GameState,
+  at: number,
+): BoostContribution[] {
+  if (!hasFeatureAccess(game, "SPEED_BOOSTS")) return [];
+
+  return crafting(game, at);
+}
+
+/** The named boosts that would speed up a crop machine pack — mirrors getCropMachineBoostWindows. */
+export function getCropMachineBoostContributions(
+  game: GameState,
+): BoostContribution[] {
+  if (!hasFeatureAccess(game, "SPEED_BOOSTS")) return [];
+
+  return cropMachine(game);
 }
 
 /** The named boosts that would speed up this animal's sleep. */
@@ -359,14 +404,11 @@ function getShapleySavings({
  * Boost-panel rows for the windowed boosts running right now, in the same
  * `{ name, value }` shape as the baked `boostsUsed` the panels already list.
  *
- * What the value says depends on the reading, so the boost is stated once and in
- * the same terms as the time beside it:
- *
- * - Speed view: the rate it is running at — `1.35x`.
- * - Actual-time view: its share of the time saved on THIS task, split so the rows
- *   account for the whole saving (see `getShapleySavings`). A booster about to
- *   expire therefore shows a small saving even though its rate is unchanged, which
- *   is the whole point of the projection.
+ * Each row is the boost's share of the time saved on THIS task, split so the
+ * rows account for the whole saving (see `getShapleySavings`) — the same terms
+ * as the projected time beside it. A booster about to expire therefore shows a
+ * small saving even though its rate is unchanged, which is the whole point of
+ * the projection.
  *
  * Boosts not covering `at` (expired, or only in `boostHistory`) are left out:
  * they do nothing for a task started now.
@@ -375,32 +417,18 @@ export function getBoostContributionEntries({
   contributions,
   seconds,
   at,
-  showActualTime,
   formatSeconds,
-  formatSpeed,
 }: {
   contributions: BoostContribution[];
   seconds: number;
   at: number;
-  showActualTime: boolean;
   /** How to render a duration — the caller's `secondsToString`. */
   formatSeconds: (seconds: number) => string;
-  /** How to render a rate — the caller's translated "Speed: {{speed}}x". */
-  formatSpeed: (speed: number) => string;
 }): { name: BoostName; value: string }[] {
   const active = contributions.filter(
     ({ windows }) => getEffectiveSpeedAt({ at, windows }) > 1,
   );
   if (active.length === 0) return [];
-
-  if (!showActualTime) {
-    return active.map(({ name, windows }) => ({
-      name,
-      value: formatSpeed(
-        Number(getEffectiveSpeedAt({ at, windows }).toFixed(2)),
-      ),
-    }));
-  }
 
   const shares = getShapleySavings({ contributions: active, seconds, at });
 

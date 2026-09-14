@@ -60,7 +60,6 @@ import { VIPOffer } from "../components/modal/components/VIPItems";
 import { StarterOfferModal } from "../components/modal/components/StarterOfferModal";
 import { RoninWaypointLoginModal } from "features/roninMigration/RoninWaypointLoginModal";
 import { GreenhouseInside } from "features/greenhouse/GreenhouseInside";
-import { useSound } from "lib/utils/hooks/useSound";
 import { SomethingArrived } from "./components/SomethingArrived";
 import { TradeAlreadyFulfilled } from "../components/TradeAlreadyFulfilled";
 import { NPC_WEARABLES } from "lib/npcs";
@@ -300,6 +299,7 @@ const isLandToVisitNotFound = (state: MachineState) =>
 const currentState = (state: MachineState) => state.value;
 const getErrorCode = (state: MachineState) => state.context.errorCode;
 const getActions = (state: MachineState) => state.context.actions;
+const getDraftActions = (state: MachineState) => state.context.draftActions;
 
 const isTransacting = (state: MachineState) => state.matches("transacting");
 const isClaimAuction = (state: MachineState) => state.matches("claimAuction");
@@ -313,6 +313,16 @@ const hasAirdrop = (state: MachineState) => state.matches("airdrop");
 const isOnChainRaffleAcknowledgment = (state: MachineState) =>
   state.matches("onChainRaffleAcknowledgment");
 const isInvestigating = (state: MachineState) => state.matches("investigating");
+// A soft-banned player unlinking Discord / Telegram from the investigation
+// screen. The unlink states normally hide this modal (Settings shows the
+// result inline), but here the soft-ban panel owns the unlink modal and has
+// to stay mounted through the request so the result shows in it. Only the
+// soft-ban screen can start an unlink while the ban is under investigation.
+const isSoftBanUnlinking = (state: MachineState) =>
+  (state.matches("unlinkingSocial") ||
+    state.matches("unlinkingSocialSuccess") ||
+    state.matches("unlinkingSocialFailed")) &&
+  state.context.state.ban.status === "investigating";
 const hasFulfilledOffers = (state: MachineState) => state.matches("offers");
 const hasVipNotification = (state: MachineState) => state.matches("vip");
 const isPlaying = (state: MachineState) => state.matches("playing");
@@ -346,7 +356,6 @@ const _isVisiting = (state: MachineState) =>
 
 const GameContent: React.FC = () => {
   const { gameService } = useContext(Context);
-  useSound("desert", true);
 
   const isVisiting = useSelector(gameService, _isVisiting);
 
@@ -503,6 +512,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
   const state = useSelector(gameService, currentState);
   const errorCode = useSelector(gameService, getErrorCode);
   const actions = useSelector(gameService, getActions);
+  const draftActions = useSelector(gameService, getDraftActions);
   const transacting = useSelector(gameService, isTransacting);
   const claimingAuction = useSelector(gameService, isClaimAuction);
   const refundAuction = useSelector(gameService, isRefundingAuction);
@@ -536,6 +546,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
   const jinAirdrop = useSelector(gameService, isJinAirdrop);
   const showPWAInstallPrompt = useSelector(authService, _showPWAInstallPrompt);
   const investigating = useSelector(gameService, isInvestigating);
+  const softBanUnlinking = useSelector(gameService, isSoftBanUnlinking);
   const linkWallet = useSelector(gameService, isLinkWallet);
   const tradesCleared = useSelector(gameService, isTradesCleared);
   const isVisiting = useSelector(gameService, _isVisiting);
@@ -550,7 +561,8 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      if (actions.length === 0) return;
+      // Unsent live actions, or an unsaved landscaping draft.
+      if (actions.length === 0 && draftActions.length === 0) return;
 
       event.preventDefault();
       event.returnValue = "";
@@ -562,7 +574,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [actions]);
+  }, [actions, draftActions]);
 
   useEffect(() => {
     const save = () => {
@@ -698,17 +710,23 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
       <ToastProvider>
         <ToastPanel />
 
-        <Modal show={SHOW_MODAL[stateValue as StateValues]} onHide={onHide}>
+        <Modal
+          show={SHOW_MODAL[stateValue as StateValues] || softBanUnlinking}
+          onHide={onHide}
+        >
           <Panel
             bumpkinParts={error ? NPC_WEARABLES["worried pete"] : undefined}
           >
-            {/* Effects */}
-            {effectPending && <Loading text={effectText} />}
+            {/* Effects - the soft-ban unlink shows its result in its own modal */}
+            {effectPending && !softBanUnlinking && (
+              <Loading text={effectText} />
+            )}
             {effectSuccess &&
+              !softBanUnlinking &&
               (EFFECT_SUCCESS_COMPONENTS[stateValue as StateValues] ?? (
                 <EffectSuccess state={stateValue} />
               ))}
-            {effectFailed && (
+            {effectFailed && !softBanUnlinking && (
               <ErrorMessage errorCode={errorCode as ErrorCode} />
             )}
 
@@ -746,7 +764,7 @@ export const GameWrapper: React.FC<React.PropsWithChildren> = ({
             {hasCommunityCoin && <LoveCharm />}
             {jinAirdrop && <RoninJinClaim />}
             {showReferralRewards && <ClaimReferralRewards />}
-            {investigating && <SoftBan />}
+            {(investigating || softBanUnlinking) && <SoftBan />}
             {linkWallet && <MigrateToLinkedWallet />}
           </Panel>
         </Modal>

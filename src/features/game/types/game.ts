@@ -9,6 +9,7 @@ import type {
 } from "./crops";
 
 import type { CollectibleName, CraftableName, Food } from "./craftables";
+import type { ExperimentName } from "./experiments";
 import type {
   UpgradedResourceName,
   CommodityName,
@@ -148,7 +149,24 @@ import type { SculptureName } from "./saltSculpture";
 export type CraftingQueueItem = {
   id: string;
   readyAt: number;
-  startedAt: number;
+  /**
+   * Absolute anchor: this craft began at this instant because the Crafting Box was
+   * free when it was queued. ABSENT means CHAINED — its start IS the derived time
+   * the box next frees up, which is what lets a boost placed mid-queue pull every
+   * queued craft forward (see `resolveCraftingQueueTimings`). Legacy items, queued
+   * before the speed-rate model, always carry one.
+   */
+  startedAt?: number;
+  /**
+   * The craft's un-boosted duration with PERMANENT boosts (Sol & Luna, Architect
+   * Ruler) already folded in. Present only on crafts queued under the speed-rate
+   * model; its absence selects the legacy baked timing, so the read path keys off
+   * this marker, NOT the `SPEED_BOOSTS` flag — matching every other activity.
+   *
+   * Zero means a Fox Shrine instant proc: no work to do, so it is ready at its own
+   * anchor and never occupies the box.
+   */
+  baseDurationMs?: number;
 } & (
   | {
       type: "collectible";
@@ -1067,11 +1085,32 @@ export type CropMachineQueueItem = {
   criticalHit?: CriticalHit;
   amount?: number;
   pausedTimeRemaining?: number;
+  /**
+   * Remaining WORK (permanent-boosted ms, temporary boosts excluded) as of the
+   * machine's `oilSettledAt`. Presence = this pack is windowed (SPEED_BOOSTS):
+   * its timing derives from `resolveCropMachine` and the stored
+   * `startTime`/`growsUntil`/`readyAt`/`growTimeRemaining` become refreshed
+   * caches. Deleted when the pack completes, at which point `readyAt` becomes
+   * immutable history. Permanent per-pack marker — read paths key off it, NOT
+   * the flag, so a windowed pack keeps windowed timing on a flag rollback.
+   */
+  baseDurationMs?: number;
 };
 
 export type CropMachineBuilding = PlacedItem & {
   queue?: CropMachineQueueItem[];
   unallocatedOilTime?: number;
+  /**
+   * Presence = this MACHINE is windowed (SPEED_BOOSTS). The tank is
+   * machine-wide, so the fuel ledger's discriminator is too: when set,
+   * `unallocatedOilTime` means the WHOLE tank — wall-clock ms of unburned fuel,
+   * with no per-pack earmarks — as of this instant, and every windowed pack's
+   * `baseDurationMs` is its remaining work as of this instant. Advanced by
+   * `settleCropMachine` on every crop-machine event. On a legacy machine
+   * (unset), `unallocatedOilTime` keeps its original meaning: oil-work not yet
+   * earmarked to a pack by `updateCropMachine`.
+   */
+  oilSettledAt?: number;
 };
 
 type CustomBuildings = {
@@ -2252,6 +2291,8 @@ export interface GameState {
     network?: NetworkName;
     economiesEnabled?: boolean;
     interiorsEnabled?: boolean;
+    /** Opt-in experiments; unset falls back to EXPERIMENT_DEFAULTS. */
+    experiments?: Partial<Record<ExperimentName, boolean>>;
     toolShop?: {
       buyAllEnabled?: boolean;
       buyAll?: Partial<
